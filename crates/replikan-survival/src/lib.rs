@@ -23,7 +23,9 @@ pub fn classify(fitness: EconomicFitness, policy: SurvivalPolicy) -> SurvivalSta
     if fitness.liquid_capital < Money::ZERO {
         return SurvivalState::Insolvent;
     }
-    if fitness.liquid_capital < policy.critical_reserve || fitness.drawdown > policy.maximum_drawdown {
+    if fitness.liquid_capital < policy.critical_reserve
+        || fitness.drawdown > policy.maximum_drawdown
+    {
         return SurvivalState::Critical;
     }
     if fitness.liquid_capital < policy.constrained_reserve || !fitness.is_reserve_funded() {

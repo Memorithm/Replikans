@@ -13,6 +13,7 @@ members = [
     "crates/replikan-market-http",
     "crates/replikan-mining-pipeline",
     "crates/replikan-network-feeds",
+    "crates/replikan-bitcoin-pipeline",
     "crates/replikan-orchestrator",
     "crates/replikan-cli",
 ]

@@ -251,7 +251,11 @@ fn compare_ranked(left: &RankedOpportunity, right: &RankedOpportunity) -> Orderi
     right
         .score_micros_per_day
         .cmp(&left.score_micros_per_day)
-        .then_with(|| left.quote.capital_required.cmp(&right.quote.capital_required))
+        .then_with(|| {
+            left.quote
+                .capital_required
+                .cmp(&right.quote.capital_required)
+        })
         .then_with(|| left.quote.id.cmp(&right.quote.id))
 }
 
@@ -267,7 +271,9 @@ fn evaluate_quote(
     now_unix_ms: u64,
 ) -> Result<QuoteDecision, EngineError> {
     if quote.observed_at_unix_ms > now_unix_ms {
-        return Ok(QuoteDecision::Reject(RejectionReason::ObservationFromFuture));
+        return Ok(QuoteDecision::Reject(
+            RejectionReason::ObservationFromFuture,
+        ));
     }
     if now_unix_ms > quote.valid_until_unix_ms {
         return Ok(QuoteDecision::Reject(RejectionReason::Expired));
@@ -522,7 +528,10 @@ mod tests {
             Err(error) => unreachable!("valid selection report: {error}"),
         };
 
-        assert_eq!(report.best().map(|item| item.quote.id.as_str()), Some("high-margin"));
+        assert_eq!(
+            report.best().map(|item| item.quote.id.as_str()),
+            Some("high-margin")
+        );
     }
 
     #[test]
@@ -559,7 +568,10 @@ mod tests {
         assert!(report.accepted.is_empty());
         assert_eq!(report.rejected.len(), 2);
         assert_eq!(report.rejected[0].reason, RejectionReason::Expired);
-        assert_eq!(report.rejected[1].reason, RejectionReason::ConfidenceTooLow);
+        assert_eq!(
+            report.rejected[1].reason,
+            RejectionReason::ConfidenceTooLow
+        );
     }
 
     #[test]
@@ -593,7 +605,10 @@ mod tests {
             Err(error) => unreachable!("valid selection report: {error}"),
         };
 
-        assert_eq!(report.best().map(|item| item.quote.id.as_str()), Some("capital-light"));
+        assert_eq!(
+            report.best().map(|item| item.quote.id.as_str()),
+            Some("capital-light")
+        );
     }
 
     #[test]
@@ -627,7 +642,10 @@ mod tests {
             Err(error) => unreachable!("valid selection report: {error}"),
         };
 
-        assert_eq!(report.best().map(|item| item.quote.id.as_str()), Some("daily"));
+        assert_eq!(
+            report.best().map(|item| item.quote.id.as_str()),
+            Some("daily")
+        );
     }
 
     #[test]

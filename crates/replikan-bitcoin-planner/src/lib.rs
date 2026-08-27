@@ -4,12 +4,10 @@ use core::fmt;
 use std::collections::BTreeSet;
 
 use replikan_economics::EconomicFitness;
-use replikan_market_feeds::PublicPriceAdapter;
 use replikan_market_http::{FetchError, HttpTransport, MarketPriceHttpClient};
 use replikan_mining_market::MiningMarketSnapshot;
 use replikan_mining_market::network_consensus::{
-    NetworkConsensus, NetworkConsensusError, NetworkConsensusPolicy, NetworkObservation,
-    derive_network_consensus,
+    NetworkConsensus, NetworkConsensusError, NetworkConsensusPolicy, derive_network_consensus,
 };
 use replikan_mining_market::price_consensus::{
     PriceConsensus, PriceConsensusError, PriceConsensusPolicy, PriceObservation,

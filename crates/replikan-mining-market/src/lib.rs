@@ -2,6 +2,7 @@
 
 pub mod network_consensus;
 pub mod price_consensus;
+pub mod snapshot_builder;
 
 use core::fmt;
 use replikan_core::{BasisPoints, Money};

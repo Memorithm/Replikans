@@ -568,10 +568,7 @@ mod tests {
         assert!(report.accepted.is_empty());
         assert_eq!(report.rejected.len(), 2);
         assert_eq!(report.rejected[0].reason, RejectionReason::Expired);
-        assert_eq!(
-            report.rejected[1].reason,
-            RejectionReason::ConfidenceTooLow
-        );
+        assert_eq!(report.rejected[1].reason, RejectionReason::ConfidenceTooLow);
     }
 
     #[test]

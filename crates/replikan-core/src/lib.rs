@@ -152,7 +152,10 @@ mod tests {
 
     #[test]
     fn basis_points_rejects_values_above_one_hundred_percent() {
-        assert_eq!(BasisPoints::new(10_001), Err(RatioError::OutOfRange(10_001)));
+        assert_eq!(
+            BasisPoints::new(10_001),
+            Err(RatioError::OutOfRange(10_001))
+        );
     }
 
     #[test]

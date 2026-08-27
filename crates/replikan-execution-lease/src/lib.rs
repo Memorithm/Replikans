@@ -7,7 +7,8 @@ use replikan_control::ControlDecision;
 use replikan_decision_ledger::DecisionEntry;
 use replikan_opportunities::OpportunityId;
 use replikan_resource::{
-    AuthorizedResourceInventory, MiningBenchmark, MiningDeploymentTemplate, ResourceId, ResourceScope,
+    AuthorizedResourceInventory, MiningBenchmark, MiningDeploymentTemplate, ResourceId,
+    ResourceScope,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -255,17 +256,25 @@ impl fmt::Display for LeaseError {
             Self::UnsupportedResourceScope => write!(f, "resource scope is not executable locally"),
             Self::AuthorizationInactive => write!(f, "resource authorization is not active"),
             Self::AuthorizationEvidenceMissing => {
-                write!(f, "decision does not contain resource authorization evidence")
+                write!(
+                    f,
+                    "decision does not contain resource authorization evidence"
+                )
             }
             Self::TemplateEvidenceMissing => {
                 write!(f, "decision does not contain deployment template evidence")
             }
             Self::NoActiveBenchmark => write!(f, "no active benchmark matches the algorithm"),
             Self::BenchmarkEvidenceMissing => {
-                write!(f, "decision does not contain evidence for an active benchmark")
+                write!(
+                    f,
+                    "decision does not contain evidence for an active benchmark"
+                )
             }
             Self::TimestampOverflow => write!(f, "execution lease timestamp overflow"),
-            Self::NoCommonValidityWindow => write!(f, "execution lease has no common validity window"),
+            Self::NoCommonValidityWindow => {
+                write!(f, "execution lease has no common validity window")
+            }
         }
     }
 }
@@ -419,7 +428,10 @@ mod tests {
         }
     }
 
-    fn inventory(authorization_valid_until: u64, benchmark_valid_until: u64) -> AuthorizedResourceInventory {
+    fn inventory(
+        authorization_valid_until: u64,
+        benchmark_valid_until: u64,
+    ) -> AuthorizedResourceInventory {
         let authorization = match AuthorizationGrant::new(
             evidence("authorization:owner"),
             NOW - 1_000,
@@ -536,10 +548,7 @@ mod tests {
 
     #[test]
     fn active_resource_without_decision_benchmark_evidence_is_rejected() {
-        let entry = run_entry(
-            NOW - 100,
-            vec!["authorization:owner", "deployment:asic"],
-        );
+        let entry = run_entry(NOW - 100, vec!["authorization:owner", "deployment:asic"]);
         assert_eq!(
             issue_mining_execution_lease(
                 &entry,

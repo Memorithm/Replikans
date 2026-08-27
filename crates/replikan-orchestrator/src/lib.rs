@@ -212,7 +212,10 @@ mod tests {
             &self.id
         }
 
-        fn discover(&self, _observed_at_unix_ms: u64) -> Result<Vec<OpportunityQuote>, Self::Error> {
+        fn discover(
+            &self,
+            _observed_at_unix_ms: u64,
+        ) -> Result<Vec<OpportunityQuote>, Self::Error> {
             self.result.clone()
         }
     }
@@ -337,7 +340,12 @@ mod tests {
             orchestrator
                 .register(FakeSource {
                     id: "actual".to_owned(),
-                    result: Ok(vec![quote("spoofed", "declared-other", 50_000_000, 10_000_000)]),
+                    result: Ok(vec![quote(
+                        "spoofed",
+                        "declared-other",
+                        50_000_000,
+                        10_000_000
+                    )]),
                 })
                 .is_ok()
         );
@@ -349,7 +357,10 @@ mod tests {
         assert!(report.selection.accepted.is_empty());
         assert_eq!(report.protocol_violations.len(), 1);
         assert_eq!(report.protocol_violations[0].source_id, "actual");
-        assert_eq!(report.protocol_violations[0].declared_source, "declared-other");
+        assert_eq!(
+            report.protocol_violations[0].declared_source,
+            "declared-other"
+        );
     }
 
     #[test]
@@ -360,7 +371,12 @@ mod tests {
                 orchestrator
                     .register(FakeSource {
                         id: source_id.to_owned(),
-                        result: Ok(vec![quote("same-id", source_id, 50_000_000, 10_000_000)]),
+                        result: Ok(vec![quote(
+                            "same-id",
+                            source_id,
+                            50_000_000,
+                            10_000_000
+                        )]),
                     })
                     .is_ok()
             );

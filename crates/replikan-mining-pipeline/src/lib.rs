@@ -2,10 +2,9 @@
 
 use core::fmt;
 use replikan_core::BasisPoints;
-use replikan_market_feeds::{
-    CoinbaseExchangePriceAdapter, KrakenPriceAdapter, PublicPriceAdapter,
-};
+use replikan_market_feeds::{CoinbaseExchangePriceAdapter, KrakenPriceAdapter, PublicPriceAdapter};
 use replikan_market_http::{FetchError, HttpTransport, MarketPriceHttpClient};
+use replikan_mining_market::MiningMarketSnapshot;
 use replikan_mining_market::network_consensus::{
     NetworkConsensus, NetworkConsensusError, NetworkConsensusPolicy, NetworkObservation,
     derive_network_consensus,
@@ -17,7 +16,6 @@ use replikan_mining_market::price_consensus::{
 use replikan_mining_market::snapshot_builder::{
     ElectricityObservation, MiningDeploymentProfile, SnapshotBuildError, build_consensus_snapshot,
 };
-use replikan_mining_market::MiningMarketSnapshot;
 use replikan_opportunities::EvidenceRef;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -129,16 +127,13 @@ where
         }
     }
 
-    let price_consensus = derive_price_consensus(
-        asset_symbol,
-        observations,
-        price_policy,
-        now_unix_ms,
-    )
-    .map_err(|error| PipelineError::PriceConsensus {
-        error,
-        source_failures: price_source_failures.clone(),
-    })?;
+    let price_consensus =
+        derive_price_consensus(asset_symbol, observations, price_policy, now_unix_ms).map_err(
+            |error| PipelineError::PriceConsensus {
+                error,
+                source_failures: price_source_failures.clone(),
+            },
+        )?;
 
     let network_consensus = derive_network_consensus(
         asset_symbol,
@@ -290,11 +285,7 @@ mod tests {
         }
     }
 
-    fn network_observation(
-        source_id: &str,
-        hashrate: u128,
-        emission: u128,
-    ) -> NetworkObservation {
+    fn network_observation(source_id: &str, hashrate: u128, emission: u128) -> NetworkObservation {
         match NetworkObservation::new(
             source_id,
             "TST",
@@ -368,27 +359,37 @@ mod tests {
         }
     }
 
-    #[test]
-    fn builds_snapshot_from_two_exchange_prices_and_network_quorum() {
-        let client = MarketPriceHttpClient::new(FixtureTransport {
+    fn client(fail_kraken: bool, kraken_price: &'static str) -> MarketPriceHttpClient<FixtureTransport> {
+        MarketPriceHttpClient::new(FixtureTransport {
             coinbase_price: "100.000000",
-            kraken_price: "101.000000",
-            fail_kraken: false,
-        });
+            kraken_price,
+            fail_kraken,
+        })
+    }
 
-        let result = build_verified_mining_snapshot(
-            &client,
+    fn run(
+        client: &MarketPriceHttpClient<FixtureTransport>,
+        minimum_price_sources: usize,
+        price_ttl_ms: u64,
+    ) -> Result<VerifiedMiningSnapshot, PipelineError> {
+        build_verified_mining_snapshot(
+            client,
             "TST",
             "sha256",
             &feeds(),
-            price_policy(2),
+            price_policy(minimum_price_sources),
             networks(),
             network_policy(),
             &deployment(),
             &electricity(),
             NOW,
-            30_000,
-        );
+            price_ttl_ms,
+        )
+    }
+
+    #[test]
+    fn builds_snapshot_from_two_exchange_prices_and_network_quorum() {
+        let result = run(&client(false, "101.000000"), 2, 30_000);
         let verified = match result {
             Ok(value) => value,
             Err(error) => unreachable!("valid verified pipeline: {error}"),
@@ -409,25 +410,7 @@ mod tests {
 
     #[test]
     fn one_exchange_failure_is_tolerated_only_when_policy_still_has_quorum() {
-        let client = MarketPriceHttpClient::new(FixtureTransport {
-            coinbase_price: "100.000000",
-            kraken_price: "101.000000",
-            fail_kraken: true,
-        });
-
-        let result = build_verified_mining_snapshot(
-            &client,
-            "TST",
-            "sha256",
-            &feeds(),
-            price_policy(1),
-            networks(),
-            network_policy(),
-            &deployment(),
-            &electricity(),
-            NOW,
-            30_000,
-        );
+        let result = run(&client(true, "101.000000"), 1, 30_000);
         let verified = match result {
             Ok(value) => value,
             Err(error) => unreachable!("single-source policy remains satisfied: {error}"),
@@ -440,25 +423,7 @@ mod tests {
 
     #[test]
     fn insufficient_price_quorum_fails_closed_with_source_diagnostics() {
-        let client = MarketPriceHttpClient::new(FixtureTransport {
-            coinbase_price: "100.000000",
-            kraken_price: "101.000000",
-            fail_kraken: true,
-        });
-
-        let result = build_verified_mining_snapshot(
-            &client,
-            "TST",
-            "sha256",
-            &feeds(),
-            price_policy(2),
-            networks(),
-            network_policy(),
-            &deployment(),
-            &electricity(),
-            NOW,
-            30_000,
-        );
+        let result = run(&client(true, "101.000000"), 2, 30_000);
 
         assert!(matches!(
             result,
@@ -474,25 +439,7 @@ mod tests {
 
     #[test]
     fn excessive_exchange_spread_blocks_snapshot_creation() {
-        let client = MarketPriceHttpClient::new(FixtureTransport {
-            coinbase_price: "100.000000",
-            kraken_price: "150.000000",
-            fail_kraken: false,
-        });
-
-        let result = build_verified_mining_snapshot(
-            &client,
-            "TST",
-            "sha256",
-            &feeds(),
-            price_policy(2),
-            networks(),
-            network_policy(),
-            &deployment(),
-            &electricity(),
-            NOW,
-            30_000,
-        );
+        let result = run(&client(false, "150.000000"), 2, 30_000);
 
         assert!(matches!(
             result,
@@ -505,26 +452,9 @@ mod tests {
 
     #[test]
     fn zero_price_ttl_is_rejected_before_network_or_economic_use() {
-        let client = MarketPriceHttpClient::new(FixtureTransport {
-            coinbase_price: "100.000000",
-            kraken_price: "101.000000",
-            fail_kraken: false,
-        });
-
-        let result = build_verified_mining_snapshot(
-            &client,
-            "TST",
-            "sha256",
-            &feeds(),
-            price_policy(2),
-            networks(),
-            network_policy(),
-            &deployment(),
-            &electricity(),
-            NOW,
-            0,
+        assert_eq!(
+            run(&client(false, "101.000000"), 2, 0),
+            Err(PipelineError::ZeroPriceTtl)
         );
-
-        assert_eq!(result, Err(PipelineError::ZeroPriceTtl));
     }
 }

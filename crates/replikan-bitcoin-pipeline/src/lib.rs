@@ -343,7 +343,10 @@ mod tests {
 
         assert_eq!(verified.verified.network_consensus.source_count, 1);
         assert_eq!(verified.network_source_failures.len(), 1);
-        assert_eq!(verified.network_source_failures[0].source_id, "blockchain.com");
+        assert_eq!(
+            verified.network_source_failures[0].source_id,
+            "blockchain.com"
+        );
     }
 
     #[test]

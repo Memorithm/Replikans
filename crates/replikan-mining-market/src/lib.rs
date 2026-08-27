@@ -390,13 +390,11 @@ mod tests {
 
     #[test]
     fn source_exposes_quotes_without_any_custody_capability() {
-        let source = match MarketMiningOpportunitySource::new(
-            "market-model",
-            vec![snapshot(1, 1_000)],
-        ) {
-            Ok(value) => value,
-            Err(error) => unreachable!("valid source: {error}"),
-        };
+        let source =
+            match MarketMiningOpportunitySource::new("market-model", vec![snapshot(1, 1_000)]) {
+                Ok(value) => value,
+                Err(error) => unreachable!("valid source: {error}"),
+            };
         let quotes = match source.discover(1_000_000) {
             Ok(value) => value,
             Err(error) => unreachable!("valid source discovery: {error}"),

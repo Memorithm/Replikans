@@ -295,15 +295,21 @@ impl fmt::Display for MiningError {
             Self::EmptyAssetSymbol => write!(f, "mining asset symbol cannot be empty"),
             Self::EmptyAlgorithm => write!(f, "mining algorithm cannot be empty"),
             Self::EmptySourceId => write!(f, "mining source id cannot be empty"),
-            Self::InvalidValidityWindow => write!(f, "mining observation validity window is invalid"),
+            Self::InvalidValidityWindow => {
+                write!(f, "mining observation validity window is invalid")
+            }
             Self::ZeroHorizon => write!(f, "mining observation horizon must be greater than zero"),
             Self::ZeroPower => write!(f, "mining power draw must be greater than zero"),
             Self::MissingEvidence => write!(f, "mining observations require evidence"),
             Self::NegativeGrossReward => write!(f, "gross mining reward cannot be negative"),
             Self::NegativeElectricityPrice => write!(f, "electricity price cannot be negative"),
             Self::NegativeCost => write!(f, "mining costs cannot be negative"),
-            Self::NegativeCapitalRequired => write!(f, "required mining capital cannot be negative"),
-            Self::ArithmeticDomain => write!(f, "invalid arithmetic domain for mining cost calculation"),
+            Self::NegativeCapitalRequired => {
+                write!(f, "required mining capital cannot be negative")
+            }
+            Self::ArithmeticDomain => {
+                write!(f, "invalid arithmetic domain for mining cost calculation")
+            }
             Self::ArithmeticOverflow => write!(f, "mining cost arithmetic overflow"),
             Self::Quote(error) => write!(f, "invalid mining opportunity quote: {error}"),
         }
@@ -400,8 +406,14 @@ mod tests {
         };
         assert_eq!(quote.expected_revenue, Money::from_micros(10_000_000));
         assert_eq!(quote.expected_costs.energy, Money::from_micros(200_000));
-        assert_eq!(quote.expected_costs.network_fees, Money::from_micros(250_000));
-        assert_eq!(quote.expected_costs.depreciation, Money::from_micros(100_000));
+        assert_eq!(
+            quote.expected_costs.network_fees,
+            Money::from_micros(250_000)
+        );
+        assert_eq!(
+            quote.expected_costs.depreciation,
+            Money::from_micros(100_000)
+        );
     }
 
     #[test]

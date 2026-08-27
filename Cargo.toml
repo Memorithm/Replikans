@@ -6,6 +6,7 @@ members = [
     "crates/replikan-survival",
     "crates/replikan-replication",
     "crates/replikan-ledger",
+    "crates/replikan-opportunities",
     "crates/replikan-cli",
 ]
 resolver = "2"

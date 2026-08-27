@@ -258,16 +258,22 @@ impl fmt::Display for SnapshotBuildError {
             Self::EmptyAssetSymbol => write!(f, "deployment asset symbol cannot be empty"),
             Self::EmptyAlgorithm => write!(f, "deployment algorithm cannot be empty"),
             Self::EmptyElectricitySource => write!(f, "electricity source cannot be empty"),
-            Self::ZeroAssetScale => write!(f, "asset atoms-per-unit scale must be greater than zero"),
+            Self::ZeroAssetScale => {
+                write!(f, "asset atoms-per-unit scale must be greater than zero")
+            }
             Self::ZeroMinerHashrate => write!(f, "miner hashrate must be greater than zero"),
             Self::ZeroPower => write!(f, "mining power draw must be greater than zero"),
-            Self::NegativeCostOrCapital => write!(f, "deployment costs and capital cannot be negative"),
+            Self::NegativeCostOrCapital => {
+                write!(f, "deployment costs and capital cannot be negative")
+            }
             Self::NegativeElectricityPrice => write!(f, "electricity price cannot be negative"),
             Self::InvalidValidityWindow => write!(f, "observation validity window is invalid"),
             Self::MissingEvidence => write!(f, "snapshot inputs require evidence"),
             Self::AssetMismatch => write!(f, "price, network and deployment assets do not match"),
             Self::AlgorithmMismatch => write!(f, "network and deployment algorithms do not match"),
-            Self::NoCommonValidityWindow => write!(f, "snapshot inputs have no common validity window"),
+            Self::NoCommonValidityWindow => {
+                write!(f, "snapshot inputs have no common validity window")
+            }
             Self::Market(error) => write!(f, "market snapshot construction failed: {error}"),
         }
     }
@@ -369,20 +375,22 @@ mod tests {
 
     #[test]
     fn builds_snapshot_from_consensus_and_local_measurements() {
-        let snapshot = match build_consensus_snapshot(
-            &price(),
-            &network(),
-            &deployment(),
-            &electricity(),
-        ) {
-            Ok(value) => value,
-            Err(error) => unreachable!("valid snapshot: {error}"),
-        };
+        let snapshot =
+            match build_consensus_snapshot(&price(), &network(), &deployment(), &electricity()) {
+                Ok(value) => value,
+                Err(error) => unreachable!("valid snapshot: {error}"),
+            };
 
-        assert_eq!(snapshot.asset_price_per_unit, Money::from_micros(20_000_000));
+        assert_eq!(
+            snapshot.asset_price_per_unit,
+            Money::from_micros(20_000_000)
+        );
         assert_eq!(snapshot.network_hashrate_units, 1_000_000);
         assert_eq!(snapshot.network_emission_atoms, 5_000_000_000);
-        assert_eq!(snapshot.electricity_price_per_kwh, Money::from_micros(150_000));
+        assert_eq!(
+            snapshot.electricity_price_per_kwh,
+            Money::from_micros(150_000)
+        );
         assert_eq!(snapshot.confidence, bps(8_000));
         assert_eq!(snapshot.observed_at_unix_ms, 980_000);
         assert_eq!(snapshot.valid_until_unix_ms, 1_040_000);
@@ -393,12 +401,7 @@ mod tests {
     fn rejects_asset_mismatch_before_economic_use() {
         let mut network = network();
         network.asset_symbol = "OTHER".to_owned();
-        let result = build_consensus_snapshot(
-            &price(),
-            &network,
-            &deployment(),
-            &electricity(),
-        );
+        let result = build_consensus_snapshot(&price(), &network, &deployment(), &electricity());
         assert_eq!(result, Err(SnapshotBuildError::AssetMismatch));
     }
 
@@ -406,12 +409,7 @@ mod tests {
     fn rejects_algorithm_mismatch_before_economic_use() {
         let mut network = network();
         network.algorithm = "other".to_owned();
-        let result = build_consensus_snapshot(
-            &price(),
-            &network,
-            &deployment(),
-            &electricity(),
-        );
+        let result = build_consensus_snapshot(&price(), &network, &deployment(), &electricity());
         assert_eq!(result, Err(SnapshotBuildError::AlgorithmMismatch));
     }
 
@@ -419,12 +417,7 @@ mod tests {
     fn rejects_inputs_without_common_validity_window() {
         let mut electricity = electricity();
         electricity.valid_until_unix_ms = 970_000;
-        let result = build_consensus_snapshot(
-            &price(),
-            &network(),
-            &deployment(),
-            &electricity,
-        );
+        let result = build_consensus_snapshot(&price(), &network(), &deployment(), &electricity);
         assert_eq!(result, Err(SnapshotBuildError::NoCommonValidityWindow));
     }
 
@@ -432,15 +425,12 @@ mod tests {
     fn impossible_local_hashrate_is_rejected_by_market_model() {
         let mut deployment = deployment();
         deployment.miner_hashrate_units = 2_000_000;
-        let result = build_consensus_snapshot(
-            &price(),
-            &network(),
-            &deployment,
-            &electricity(),
-        );
+        let result = build_consensus_snapshot(&price(), &network(), &deployment, &electricity());
         assert!(matches!(
             result,
-            Err(SnapshotBuildError::Market(MarketError::MinerHashrateExceedsNetwork))
+            Err(SnapshotBuildError::Market(
+                MarketError::MinerHashrateExceedsNetwork
+            ))
         ));
     }
 }

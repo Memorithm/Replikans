@@ -1,0 +1,16 @@
+[package]
+name = "replikan-control"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-core = { path = "../replikan-core" }
+replikan-economics = { path = "../replikan-economics" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+replikan-survival = { path = "../replikan-survival" }
+
+[lints]
+workspace = true

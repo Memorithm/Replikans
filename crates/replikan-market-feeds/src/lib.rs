@@ -350,7 +350,10 @@ mod tests {
         };
 
         assert_eq!(adapter.provider_id(), "coinbase-exchange");
-        assert_eq!(observation.price_per_unit, Money::from_micros(6_268_480_000));
+        assert_eq!(
+            observation.price_per_unit,
+            Money::from_micros(6_268_480_000)
+        );
         assert_eq!(observation.source_id, "coinbase-exchange");
     }
 
@@ -372,7 +375,10 @@ mod tests {
         };
 
         assert_eq!(adapter.provider_id(), "kraken");
-        assert_eq!(observation.price_per_unit, Money::from_micros(8_464_500_000));
+        assert_eq!(
+            observation.price_per_unit,
+            Money::from_micros(8_464_500_000)
+        );
         assert_eq!(observation.source_id, "kraken");
     }
 

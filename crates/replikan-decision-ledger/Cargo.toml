@@ -13,5 +13,8 @@ replikan-ledger = { path = "../replikan-ledger" }
 replikan-opportunities = { path = "../replikan-opportunities" }
 replikan-survival = { path = "../replikan-survival" }
 
+[dev-dependencies]
+replikan-core = { path = "../replikan-core" }
+
 [lints]
 workspace = true

@@ -129,7 +129,9 @@ pub fn derive_network_consensus(
             });
         }
         if !seen_sources.insert(observation.source_id.clone()) {
-            return Err(NetworkConsensusError::DuplicateSource(observation.source_id));
+            return Err(NetworkConsensusError::DuplicateSource(
+                observation.source_id,
+            ));
         }
 
         if let Some(horizon) = expected_horizon {

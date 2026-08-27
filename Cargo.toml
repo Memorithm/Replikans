@@ -12,6 +12,7 @@ members = [
     "crates/replikan-market-feeds",
     "crates/replikan-market-http",
     "crates/replikan-mining-pipeline",
+    "crates/replikan-network-feeds",
     "crates/replikan-orchestrator",
     "crates/replikan-cli",
 ]

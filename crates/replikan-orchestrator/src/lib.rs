@@ -371,12 +371,7 @@ mod tests {
                 orchestrator
                     .register(FakeSource {
                         id: source_id.to_owned(),
-                        result: Ok(vec![quote(
-                            "same-id",
-                            source_id,
-                            50_000_000,
-                            10_000_000
-                        )]),
+                        result: Ok(vec![quote("same-id", source_id, 50_000_000, 10_000_000)]),
                     })
                     .is_ok()
             );

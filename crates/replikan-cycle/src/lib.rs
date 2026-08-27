@@ -20,7 +20,7 @@ use replikan_mining_pipeline::PriceFeedRequest;
 use replikan_network_feeds::BitcoinNetworkRequest;
 use replikan_opportunities::SelectionPolicy;
 use replikan_resource::{AuthorizedResourceInventory, MiningDeploymentTemplate, ResourceError};
-use replikan_survival::{SpendingMode, SurvivalPolicy, SurvivalState};
+use replikan_survival::SurvivalPolicy;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CapitalBaseline {
@@ -119,32 +119,28 @@ where
     N: HttpTransport,
 {
     let economic = derive_economic_state(economic_ledger, baseline)?;
-    let gate = preflight(economic.fitness, policies.survival);
-
-    if let EvaluationGate::Freeze { state } = gate {
-        let decision = ControlDecision::Freeze { state };
-        let decision_sequence = append_decision(
-            decision_ledger,
-            now_unix_ms,
-            economic,
-            policies,
-            DecisionCounters::default(),
-            vec!["cycle:survival-freeze".to_owned()],
-            Vec::new(),
-            decision.clone(),
-        )?;
-        return Ok(CycleReport {
-            economic,
-            plan: None,
-            decision,
-            decision_sequence,
-            planning_diagnostic: None,
-        });
-    }
-
-    let (state, mode) = match gate {
+    let (state, mode) = match preflight(economic.fitness, policies.survival) {
+        EvaluationGate::Freeze { state } => {
+            let decision = ControlDecision::Freeze { state };
+            let decision_sequence = append_decision(
+                decision_ledger,
+                now_unix_ms,
+                economic,
+                policies,
+                DecisionCounters::default(),
+                vec!["cycle:survival-freeze".to_owned()],
+                Vec::new(),
+                decision.clone(),
+            )?;
+            return Ok(CycleReport {
+                economic,
+                plan: None,
+                decision,
+                decision_sequence,
+                planning_diagnostic: None,
+            });
+        }
         EvaluationGate::Evaluate { state, mode } => (state, mode),
-        EvaluationGate::Freeze { state } => (state, SpendingMode::Frozen),
     };
 
     let planning = plan_authorized_bitcoin_resources(
@@ -164,13 +160,7 @@ where
     );
 
     match planning {
-        Ok(plan) => finish_planned_cycle(
-            decision_ledger,
-            economic,
-            policies,
-            now_unix_ms,
-            plan,
-        ),
+        Ok(plan) => finish_planned_cycle(decision_ledger, economic, policies, now_unix_ms, plan),
         Err(AuthorizedPlanningError::NoAuthorizedDeployments { rejected }) => {
             let rejected_count = rejected.len();
             let decision = ControlDecision::Hold {
@@ -315,7 +305,9 @@ fn append_decision(
         decision,
     )
     .map_err(CycleError::DecisionLedger)?;
-    ledger.append(observation).map_err(CycleError::DecisionLedger)
+    ledger
+        .append(observation)
+        .map_err(CycleError::DecisionLedger)
 }
 
 fn collect_plan_evidence(
@@ -339,7 +331,7 @@ fn collect_plan_evidence(
                 .selection
                 .accepted
                 .iter()
-                .find(|candidate| candidate.quote.id == *opportunity_id)
+                .find(|candidate| candidate.quote.id.as_str() == opportunity_id.as_str())
             {
                 evidence.extend(
                     candidate
@@ -381,7 +373,10 @@ fn collect_plan_diagnostics(plan: &AuthorizedBitcoinMiningPlan) -> Vec<String> {
         ));
     }
     for failure in &plan.bitcoin.market.price_source_failures {
-        diagnostics.push(format!("price-source:{}:{}", failure.source_id, failure.reason));
+        diagnostics.push(format!(
+            "price-source:{}:{}",
+            failure.source_id, failure.reason
+        ));
     }
     for failure in &plan.bitcoin.market.network_source_failures {
         diagnostics.push(format!(
@@ -431,7 +426,7 @@ mod tests {
     use super::*;
     use std::cell::Cell;
 
-    use replikan_economics::{OperatingCosts, OpportunityPolicy};
+    use replikan_economics::OpportunityPolicy;
     use replikan_ledger::EntryKind;
     use replikan_market_feeds::{CoinbaseExchangePriceAdapter, KrakenPriceAdapter};
     use replikan_market_http::{HttpResponse, TransportError};
@@ -441,6 +436,7 @@ mod tests {
     use replikan_resource::{
         AuthorizationGrant, AuthorizedResource, MiningBenchmark, ResourceId, ResourceKind,
     };
+    use replikan_survival::{SpendingMode, SurvivalState};
 
     const NOW: u64 = 1_000_000;
 
@@ -501,8 +497,8 @@ mod tests {
         }
     }
 
-    fn evidence(value: &str) -> EvidenceRef {
-        match EvidenceRef::new(value) {
+    fn evidence(value: &str) -> replikan_opportunities::EvidenceRef {
+        match replikan_opportunities::EvidenceRef::new(value) {
             Ok(value) => value,
             Err(error) => unreachable!("valid evidence: {error}"),
         }
@@ -721,12 +717,18 @@ mod tests {
             Ok(value) => value,
             Err(error) => unreachable!("valid economic state: {error}"),
         };
-        assert_eq!(state.fitness.realized_revenue, Money::from_micros(10_000_000));
+        assert_eq!(
+            state.fitness.realized_revenue,
+            Money::from_micros(10_000_000)
+        );
         assert_eq!(
             state.fitness.realized_costs.energy,
             Money::from_micros(2_000_000)
         );
-        assert_eq!(state.fitness.liquid_capital, Money::from_micros(78_000_000));
+        assert_eq!(
+            state.fitness.liquid_capital,
+            Money::from_micros(78_000_000)
+        );
     }
 
     #[test]
@@ -819,7 +821,12 @@ mod tests {
         ));
         assert_eq!(price_client.transport().calls.get(), 0);
         assert_eq!(network_transport.calls.get(), 0);
-        assert_eq!(decision_ledger.entries()[0].observation.materialization_rejections, 1);
+        assert_eq!(
+            decision_ledger.entries()[0]
+                .observation
+                .materialization_rejections,
+            1
+        );
     }
 
     #[test]
@@ -864,6 +871,11 @@ mod tests {
         assert_eq!(entry.network_source_count, 2);
         assert!(entry.evidence.iter().any(|value| value == "price:coinbase"));
         assert!(entry.evidence.iter().any(|value| value == "benchmark:asic"));
-        assert!(entry.evidence.iter().any(|value| value == "authorization:owner"));
+        assert!(
+            entry
+                .evidence
+                .iter()
+                .any(|value| value == "authorization:owner")
+        );
     }
 }

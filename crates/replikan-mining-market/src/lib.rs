@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod network_consensus;
 pub mod price_consensus;
 
 use core::fmt;

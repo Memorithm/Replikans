@@ -432,7 +432,7 @@ mod tests {
     use replikan_market_http::{HttpResponse, TransportError};
     use replikan_mining_pipeline::PublicPriceFeed;
     use replikan_network_feeds::BitcoinNetworkFeed;
-    use replikan_opportunities::{EvidenceRef, OpportunityId};
+    use replikan_opportunities::OpportunityId;
     use replikan_resource::{
         AuthorizationGrant, AuthorizedResource, MiningBenchmark, ResourceId, ResourceKind,
     };
@@ -725,10 +725,7 @@ mod tests {
             state.fitness.realized_costs.energy,
             Money::from_micros(2_000_000)
         );
-        assert_eq!(
-            state.fitness.liquid_capital,
-            Money::from_micros(78_000_000)
-        );
+        assert_eq!(state.fitness.liquid_capital, Money::from_micros(78_000_000));
     }
 
     #[test]

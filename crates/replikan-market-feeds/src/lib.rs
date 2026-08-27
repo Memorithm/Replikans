@@ -322,14 +322,14 @@ mod tests {
 
     #[test]
     fn decimal_parser_never_uses_binary_float_and_floors_sub_micro_digits() {
-        assert_eq!(
+        assert!(matches!(
             parse_nonnegative_decimal_micros("6268.48123499").map(Money::micros),
             Ok(6_268_481_234)
-        );
-        assert_eq!(
+        ));
+        assert!(matches!(
             parse_nonnegative_decimal_micros("0.1").map(Money::micros),
             Ok(100_000)
-        );
+        ));
     }
 
     #[test]

@@ -104,17 +104,14 @@ impl DecisionLedger {
         self.entries.last()
     }
 
-    pub fn append(
-        &mut self,
-        observation: DecisionObservation,
-    ) -> Result<u64, DecisionLedgerError> {
-        if let Some(latest) = self.latest()
-            && observation.observed_at_unix_ms < latest.observation.observed_at_unix_ms
-        {
-            return Err(DecisionLedgerError::TimestampRegression {
-                previous: latest.observation.observed_at_unix_ms,
-                observed: observation.observed_at_unix_ms,
-            });
+    pub fn append(&mut self, observation: DecisionObservation) -> Result<u64, DecisionLedgerError> {
+        if let Some(latest) = self.latest() {
+            if observation.observed_at_unix_ms < latest.observation.observed_at_unix_ms {
+                return Err(DecisionLedgerError::TimestampRegression {
+                    previous: latest.observation.observed_at_unix_ms,
+                    observed: observation.observed_at_unix_ms,
+                });
+            }
         }
 
         let sequence = self.next_sequence;
@@ -159,7 +156,7 @@ impl std::error::Error for DecisionLedgerError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use replikan_control::{HoldReason, ControlDecision};
+    use replikan_control::{ControlDecision, HoldReason};
     use replikan_core::{BasisPoints, Money};
     use replikan_economics::{OperatingCosts, OpportunityPolicy};
     use replikan_survival::{SpendingMode, SurvivalState};

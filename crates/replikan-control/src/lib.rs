@@ -5,9 +5,7 @@ use core::fmt;
 use replikan_core::Money;
 use replikan_economics::EconomicFitness;
 use replikan_opportunities::{EngineError, OpportunityId, RankedOpportunity, SelectionReport};
-use replikan_survival::{
-    SpendingMode, SurvivalPolicy, SurvivalState, classify, spending_mode,
-};
+use replikan_survival::{SpendingMode, SurvivalPolicy, SurvivalState, classify, spending_mode};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ControlPolicy {
@@ -94,10 +92,9 @@ pub fn decide(
     selection: &SelectionReport,
     control_policy: ControlPolicy,
 ) -> Result<ControlDecision, ControlError> {
-    let EvaluationGate::Evaluate { state, mode } = preflight(fitness, survival_policy) else {
-        return Ok(ControlDecision::Freeze {
-            state: SurvivalState::Insolvent,
-        });
+    let (state, mode) = match preflight(fitness, survival_policy) {
+        EvaluationGate::Freeze { state } => return Ok(ControlDecision::Freeze { state }),
+        EvaluationGate::Evaluate { state, mode } => (state, mode),
     };
 
     if selection.accepted.is_empty() {
@@ -110,15 +107,10 @@ pub fn decide(
 
     let candidate = match mode {
         SpendingMode::Normal => selection.accepted.first(),
-        SpendingMode::PreserveCapital => selection
-            .accepted
-            .iter()
-            .find(|candidate| {
-                candidate.quote.capital_required <= control_policy.preserve_capital_max_new_capital
-            }),
-        SpendingMode::EssentialOnly => {
-            find_essential_candidate(selection, control_policy)?
-        }
+        SpendingMode::PreserveCapital => selection.accepted.iter().find(|candidate| {
+            candidate.quote.capital_required <= control_policy.preserve_capital_max_new_capital
+        }),
+        SpendingMode::EssentialOnly => find_essential_candidate(selection, control_policy)?,
         SpendingMode::Frozen => None,
     };
 

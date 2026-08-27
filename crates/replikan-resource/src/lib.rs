@@ -157,7 +157,9 @@ impl AuthorizedResource {
     pub fn active_benchmark(&self, algorithm: &str, now_unix_ms: u64) -> Option<&MiningBenchmark> {
         self.mining_benchmarks
             .iter()
-            .filter(|benchmark| benchmark.algorithm == algorithm && benchmark.is_active_at(now_unix_ms))
+            .filter(|benchmark| {
+                benchmark.algorithm == algorithm && benchmark.is_active_at(now_unix_ms)
+            })
             .max_by_key(|benchmark| benchmark.observed_at_unix_ms)
     }
 }
@@ -433,7 +435,9 @@ impl fmt::Display for ResourceError {
         match self {
             Self::EmptyResourceId => write!(f, "resource id cannot be empty"),
             Self::DuplicateResourceId(id) => write!(f, "duplicate resource id: {}", id.as_str()),
-            Self::InvalidAuthorizationWindow => write!(f, "resource authorization window is invalid"),
+            Self::InvalidAuthorizationWindow => {
+                write!(f, "resource authorization window is invalid")
+            }
             Self::EmptyAlgorithm => write!(f, "mining algorithm cannot be empty"),
             Self::ZeroHashrate => write!(f, "measured hashrate must be greater than zero"),
             Self::ZeroPower => write!(f, "measured power must be greater than zero"),
@@ -441,10 +445,16 @@ impl fmt::Display for ResourceError {
             Self::MissingBenchmarkEvidence => write!(f, "benchmark requires evidence"),
             Self::EmptyAssetSymbol => write!(f, "deployment asset symbol cannot be empty"),
             Self::ZeroAssetScale => write!(f, "asset atoms-per-unit must be greater than zero"),
-            Self::InvalidTemplateWindow => write!(f, "deployment template validity window is invalid"),
-            Self::NegativeCostOrCapital => write!(f, "deployment costs and capital cannot be negative"),
+            Self::InvalidTemplateWindow => {
+                write!(f, "deployment template validity window is invalid")
+            }
+            Self::NegativeCostOrCapital => {
+                write!(f, "deployment costs and capital cannot be negative")
+            }
             Self::MissingTemplateEvidence => write!(f, "deployment template requires evidence"),
-            Self::NoDeploymentTemplates => write!(f, "at least one deployment template is required"),
+            Self::NoDeploymentTemplates => {
+                write!(f, "at least one deployment template is required")
+            }
             Self::DuplicateOpportunityId(id) => {
                 write!(f, "duplicate deployment opportunity id: {}", id.as_str())
             }
@@ -489,7 +499,11 @@ mod tests {
     }
 
     fn grant(valid_until: u64) -> AuthorizationGrant {
-        match AuthorizationGrant::new(evidence("authorization:local-owner"), NOW - 100_000, valid_until) {
+        match AuthorizationGrant::new(
+            evidence("authorization:local-owner"),
+            NOW - 100_000,
+            valid_until,
+        ) {
             Ok(value) => value,
             Err(error) => unreachable!("valid authorization: {error}"),
         }
@@ -510,7 +524,10 @@ mod tests {
         }
     }
 
-    fn resource(authorization: AuthorizationGrant, benchmarks: Vec<MiningBenchmark>) -> AuthorizedResource {
+    fn resource(
+        authorization: AuthorizationGrant,
+        benchmarks: Vec<MiningBenchmark>,
+    ) -> AuthorizedResource {
         AuthorizedResource::local(
             resource_id("local:asic-0"),
             ResourceKind::Asic,
@@ -519,7 +536,10 @@ mod tests {
         )
     }
 
-    fn inventory(authorization: AuthorizationGrant, benchmarks: Vec<MiningBenchmark>) -> AuthorizedResourceInventory {
+    fn inventory(
+        authorization: AuthorizationGrant,
+        benchmarks: Vec<MiningBenchmark>,
+    ) -> AuthorizedResourceInventory {
         match AuthorizedResourceInventory::new(vec![resource(authorization, benchmarks)]) {
             Ok(value) => value,
             Err(error) => unreachable!("valid inventory: {error}"),
@@ -570,7 +590,7 @@ mod tests {
         assert!(report.rejected.is_empty());
         assert_eq!(report.profiles[0].miner_hashrate_units, 100_000_000_000_000);
         assert_eq!(report.profiles[0].power_watts, 3_000);
-        assert_eq!(report.profiles[0].scope_evidence_count(), 3);
+        assert_eq!(report.profiles[0].evidence.len(), 3);
     }
 
     #[test]
@@ -663,15 +683,5 @@ mod tests {
             vec![benchmark(100_000_000_000_000, 3_000, NOW - 1_000)],
         );
         assert_eq!(resource.scope, ResourceScope::LocalMachine);
-    }
-
-    trait ProfileEvidenceExt {
-        fn scope_evidence_count(&self) -> usize;
-    }
-
-    impl ProfileEvidenceExt for MiningDeploymentProfile {
-        fn scope_evidence_count(&self) -> usize {
-            self.evidence.len()
-        }
     }
 }

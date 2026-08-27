@@ -2,7 +2,7 @@
 
 use replikan_core::{BasisPoints, Money};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct OperatingCosts {
     pub energy: Money,
     pub compute: Money,
@@ -156,7 +156,10 @@ mod tests {
 
     #[test]
     fn computes_realized_profit_after_all_costs() {
-        assert_eq!(fitness().realized_net_profit(), Money::from_micros(11_500_000));
+        assert_eq!(
+            fitness().realized_net_profit(),
+            Money::from_micros(11_500_000)
+        );
     }
 
     #[test]

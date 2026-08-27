@@ -202,7 +202,9 @@ fn parse_decimal_scaled_floor(
 
     let (mantissa, exponent) = split_exponent(value)?;
     let mut decimal_parts = mantissa.split('.');
-    let whole = decimal_parts.next().ok_or(NetworkFeedError::InvalidDecimal)?;
+    let whole = decimal_parts
+        .next()
+        .ok_or(NetworkFeedError::InvalidDecimal)?;
     let fraction = decimal_parts.next().unwrap_or("");
     if decimal_parts.next().is_some()
         || whole.is_empty()
@@ -224,15 +226,16 @@ fn parse_decimal_scaled_floor(
 
     let fraction_digits =
         i32::try_from(fraction.len()).map_err(|_| NetworkFeedError::NumericOverflow)?;
-    let scale = i32::try_from(scale_decimal_exponent)
-        .map_err(|_| NetworkFeedError::NumericOverflow)?;
+    let scale =
+        i32::try_from(scale_decimal_exponent).map_err(|_| NetworkFeedError::NumericOverflow)?;
     let net_exponent = exponent
         .checked_sub(fraction_digits)
         .and_then(|value| value.checked_add(scale))
         .ok_or(NetworkFeedError::NumericOverflow)?;
 
     if net_exponent >= 0 {
-        let exponent = u32::try_from(net_exponent).map_err(|_| NetworkFeedError::NumericOverflow)?;
+        let exponent =
+            u32::try_from(net_exponent).map_err(|_| NetworkFeedError::NumericOverflow)?;
         let multiplier = pow10(exponent)?;
         significant
             .checked_mul(multiplier)
@@ -402,7 +405,8 @@ mod tests {
             } else if endpoint == MEMPOOL_HEIGHT_ENDPOINT {
                 "840000".to_owned()
             } else if endpoint == BLOCKCHAIN_HASHRATE_ENDPOINT {
-                r#"{"status":"ok","unit":"TH/s","values":[{"x":1,"y":6.4e8},{"x":2,"y":6.5e8}]}"#.to_owned()
+                r#"{"status":"ok","unit":"TH/s","values":[{"x":1,"y":6.4e8},{"x":2,"y":6.5e8}]}"#
+                    .to_owned()
             } else if endpoint == BLOCKCHAIN_HEIGHT_ENDPOINT {
                 "840000".to_owned()
             } else {
@@ -440,7 +444,11 @@ mod tests {
             Err(error) => unreachable!("valid bitcoin policy: {error}"),
         };
         assert!(policy.validate_endpoint(MEMPOOL_HASHRATE_ENDPOINT).is_ok());
-        assert!(policy.validate_endpoint(BLOCKCHAIN_HASHRATE_ENDPOINT).is_ok());
+        assert!(
+            policy
+                .validate_endpoint(BLOCKCHAIN_HASHRATE_ENDPOINT)
+                .is_ok()
+        );
         assert!(matches!(
             policy.validate_endpoint("https://example.com/network"),
             Err(TransportError::HostForbidden(_))
@@ -453,10 +461,7 @@ mod tests {
         assert_eq!(bitcoin_subsidy_sats(209_999), 5_000_000_000);
         assert_eq!(bitcoin_subsidy_sats(210_000), 2_500_000_000);
         assert_eq!(bitcoin_subsidy_sats(840_000), 312_500_000);
-        assert_eq!(
-            bitcoin_subsidy_sats(BITCOIN_HALVING_INTERVAL * 64),
-            0
-        );
+        assert_eq!(bitcoin_subsidy_sats(BITCOIN_HALVING_INTERVAL * 64), 0);
     }
 
     #[test]

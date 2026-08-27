@@ -102,16 +102,13 @@ where
         }
     }
 
-    let price_consensus = derive_price_consensus(
-        "BTC",
-        price_observations,
-        price_policy,
-        now_unix_ms,
-    )
-    .map_err(|error| PlannerError::PriceConsensus {
-        error,
-        source_failures: price_source_failures.clone(),
-    })?;
+    let price_consensus =
+        derive_price_consensus("BTC", price_observations, price_policy, now_unix_ms).map_err(
+            |error| PlannerError::PriceConsensus {
+                error,
+                source_failures: price_source_failures.clone(),
+            },
+        )?;
 
     let mut network_observations = Vec::with_capacity(network_feeds.len());
     let mut network_source_failures = Vec::new();
@@ -260,7 +257,9 @@ fn project_deployment(
     )
     .map_err(|error| error.to_string())?;
 
-    let observation = snapshot.to_observation().map_err(|error| error.to_string())?;
+    let observation = snapshot
+        .to_observation()
+        .map_err(|error| error.to_string())?;
     let quote = observation
         .to_quote(VERIFIED_BITCOIN_SOURCE)
         .map_err(|error| error.to_string())?;
@@ -632,7 +631,10 @@ mod tests {
         ];
 
         let result = planner(&price_client, &network_transport, &deployments);
-        assert!(matches!(result, Err(PlannerError::DuplicateDeploymentId(_))));
+        assert!(matches!(
+            result,
+            Err(PlannerError::DuplicateDeploymentId(_))
+        ));
         assert_eq!(price_client.transport().calls.get(), 0);
         assert_eq!(network_transport.calls.get(), 0);
     }

@@ -84,7 +84,8 @@ impl EconomicLedger {
                     snapshot.costs.network_fees = add(snapshot.costs.network_fees, entry.amount)?;
                 }
                 EntryKind::InfrastructureCost => {
-                    snapshot.costs.infrastructure = add(snapshot.costs.infrastructure, entry.amount)?;
+                    snapshot.costs.infrastructure =
+                        add(snapshot.costs.infrastructure, entry.amount)?;
                 }
                 EntryKind::DepreciationCost => {
                     snapshot.costs.depreciation = add(snapshot.costs.depreciation, entry.amount)?;
@@ -96,7 +97,8 @@ impl EconomicLedger {
                     snapshot.external_capital_in = add(snapshot.external_capital_in, entry.amount)?;
                 }
                 EntryKind::CapitalWithdrawal => {
-                    snapshot.external_capital_out = add(snapshot.external_capital_out, entry.amount)?;
+                    snapshot.external_capital_out =
+                        add(snapshot.external_capital_out, entry.amount)?;
                 }
             }
         }
@@ -213,7 +215,10 @@ mod tests {
             Ok(value) => value,
             Err(error) => unreachable!("valid ledger snapshot: {error}"),
         };
-        assert_eq!(snapshot.realized_net_profit(), Money::from_micros(17_500_000));
+        assert_eq!(
+            snapshot.realized_net_profit(),
+            Money::from_micros(17_500_000)
+        );
     }
 
     #[test]

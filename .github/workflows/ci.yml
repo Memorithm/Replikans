@@ -18,10 +18,12 @@ jobs:
       - name: Reject hard-coded wallet material
         run: bash scripts/check-no-hardcoded-wallets.sh
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      - name: Prepare Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          rustc --version
+          cargo --version
 
       - name: Cargo fmt
         run: cargo fmt --all -- --check

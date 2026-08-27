@@ -1,0 +1,20 @@
+[package]
+name = "replikan-bitcoin-planner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-core = { path = "../replikan-core" }
+replikan-economics = { path = "../replikan-economics" }
+replikan-market-feeds = { path = "../replikan-market-feeds" }
+replikan-market-http = { path = "../replikan-market-http" }
+replikan-mining-market = { path = "../replikan-mining-market" }
+replikan-mining-pipeline = { path = "../replikan-mining-pipeline" }
+replikan-network-feeds = { path = "../replikan-network-feeds" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+
+[lints]
+workspace = true

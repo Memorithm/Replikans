@@ -403,7 +403,10 @@ mod tests {
 
         assert_eq!(plan.materialization.profiles.len(), 1);
         assert_eq!(plan.bitcoin.snapshots.len(), 1);
-        assert_eq!(plan.bitcoin.snapshots[0].miner_hashrate_units, 1_000_000_000_000_000);
+        assert_eq!(
+            plan.bitcoin.snapshots[0].miner_hashrate_units,
+            1_000_000_000_000_000
+        );
         assert_eq!(plan.bitcoin.snapshots[0].power_watts, 3_000);
         assert_eq!(price_client.transport().calls.get(), 2);
         assert_eq!(network_transport.calls.get(), 4);
@@ -445,12 +448,7 @@ mod tests {
                 1_000_000_000_000_000,
                 3_000,
             ),
-            resource(
-                "local:asic-expired",
-                NOW - 1,
-                1_000_000_000_000_000,
-                3_000,
-            ),
+            resource("local:asic-expired", NOW - 1, 1_000_000_000_000_000, 3_000),
         ]);
         let templates = vec![
             template("btc:good", "local:asic-good"),

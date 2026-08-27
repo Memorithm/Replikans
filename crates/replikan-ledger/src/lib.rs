@@ -111,6 +111,25 @@ fn add(lhs: Money, rhs: Money) -> Result<Money, LedgerError> {
     lhs.checked_add(rhs).ok_or(LedgerError::MonetaryOverflow)
 }
 
+fn sub(lhs: Money, rhs: Money) -> Result<Money, LedgerError> {
+    lhs.checked_sub(rhs).ok_or(LedgerError::MonetaryOverflow)
+}
+
+fn checked_cost_total(costs: OperatingCosts) -> Result<Money, LedgerError> {
+    let mut total = Money::ZERO;
+    for cost in [
+        costs.energy,
+        costs.compute,
+        costs.network_fees,
+        costs.infrastructure,
+        costs.depreciation,
+        costs.other,
+    ] {
+        total = add(total, cost)?;
+    }
+    Ok(total)
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LedgerSnapshot {
     pub realized_revenue: Money,
@@ -120,6 +139,21 @@ pub struct LedgerSnapshot {
 }
 
 impl LedgerSnapshot {
+    pub fn checked_realized_net_profit(self) -> Result<Money, LedgerError> {
+        sub(self.realized_revenue, checked_cost_total(self.costs)?)
+    }
+
+    pub fn checked_net_external_capital_flow(self) -> Result<Money, LedgerError> {
+        sub(self.external_capital_in, self.external_capital_out)
+    }
+
+    pub fn checked_liquid_delta(self) -> Result<Money, LedgerError> {
+        add(
+            self.checked_realized_net_profit()?,
+            self.checked_net_external_capital_flow()?,
+        )
+    }
+
     #[must_use]
     pub fn realized_net_profit(self) -> Money {
         self.realized_revenue - self.costs.total()
@@ -177,7 +211,15 @@ mod tests {
         };
         assert_eq!(snapshot.realized_revenue, Money::ZERO);
         assert_eq!(snapshot.realized_net_profit(), Money::ZERO);
+        assert_eq!(
+            snapshot.checked_realized_net_profit(),
+            Ok(Money::ZERO)
+        );
         assert_eq!(snapshot.liquid_delta(), Money::from_micros(100_000_000));
+        assert_eq!(
+            snapshot.checked_liquid_delta(),
+            Ok(Money::from_micros(100_000_000))
+        );
     }
 
     #[test]
@@ -218,6 +260,25 @@ mod tests {
         assert_eq!(
             snapshot.realized_net_profit(),
             Money::from_micros(17_500_000)
+        );
+        assert_eq!(
+            snapshot.checked_realized_net_profit(),
+            Ok(Money::from_micros(17_500_000))
+        );
+    }
+
+    #[test]
+    fn checked_snapshot_arithmetic_rejects_overflow() {
+        let snapshot = LedgerSnapshot {
+            realized_revenue: Money::from_micros(i128::MAX),
+            costs: OperatingCosts::default(),
+            external_capital_in: Money::from_micros(1),
+            external_capital_out: Money::ZERO,
+        };
+
+        assert_eq!(
+            snapshot.checked_liquid_delta(),
+            Err(LedgerError::MonetaryOverflow)
         );
     }
 

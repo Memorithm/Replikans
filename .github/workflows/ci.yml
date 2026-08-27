@@ -15,6 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Reject hard-coded wallet material
+        run: bash scripts/check-no-hardcoded-wallets.sh
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:

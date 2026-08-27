@@ -14,6 +14,7 @@ const BITCOIN_HALVING_INTERVAL: u64 = 210_000;
 const BITCOIN_TARGET_BLOCK_SECONDS: u64 = 600;
 const BITCOIN_INITIAL_SUBSIDY_SATS: u64 = 5_000_000_000;
 const H_PER_TH_DECIMAL_EXPONENT: u32 = 12;
+const MAX_U128_DECIMAL_EXPONENT: u32 = 38;
 
 const MEMPOOL_HASHRATE_ENDPOINT: &str = "https://mempool.space/api/v1/mining/hashrate/3d";
 const MEMPOOL_HEIGHT_ENDPOINT: &str = "https://mempool.space/api/blocks/tip/height";
@@ -144,12 +145,21 @@ fn parse_mempool_hashrate(body: &str) -> Result<u128, NetworkFeedError> {
                 .and_then(|items| items.last())
                 .and_then(|item| item.get("avgHashrate"))
         })
-        .ok_or(NetworkFeedError::MissingField("currentHashrate/hashrates[-1].avgHashrate"))?;
+        .ok_or(NetworkFeedError::MissingField(
+            "currentHashrate/hashrates[-1].avgHashrate",
+        ))?;
     parse_json_decimal_scaled_floor(rate, 0)
 }
 
 fn parse_blockchain_hashrate(body: &str) -> Result<u128, NetworkFeedError> {
     let value: Value = serde_json::from_str(body).map_err(NetworkFeedError::Json)?;
+    let unit = value
+        .get("unit")
+        .and_then(Value::as_str)
+        .ok_or(NetworkFeedError::MissingField("unit"))?;
+    if unit != "TH/s" {
+        return Err(NetworkFeedError::UnexpectedUnit(unit.to_owned()));
+    }
     let rate_th = value
         .get("values")
         .and_then(Value::as_array)
@@ -229,11 +239,10 @@ fn parse_decimal_scaled_floor(
             .ok_or(NetworkFeedError::NumericOverflow)
     } else {
         let exponent = net_exponent.unsigned_abs();
-        match pow10(exponent) {
-            Ok(divisor) => Ok(significant / divisor),
-            Err(NetworkFeedError::NumericOverflow) => Ok(0),
-            Err(error) => Err(error),
+        if exponent > MAX_U128_DECIMAL_EXPONENT {
+            return Ok(0);
         }
+        Ok(significant / pow10(exponent)?)
     }
 }
 
@@ -265,6 +274,9 @@ fn split_exponent(value: &str) -> Result<(&str, i32), NetworkFeedError> {
 }
 
 fn pow10(exponent: u32) -> Result<u128, NetworkFeedError> {
+    if exponent > MAX_U128_DECIMAL_EXPONENT {
+        return Err(NetworkFeedError::NumericOverflow);
+    }
     let mut value = 1_u128;
     for _ in 0..exponent {
         value = value
@@ -342,6 +354,7 @@ pub enum NetworkFeedError {
     HttpStatus(u16),
     Json(serde_json::Error),
     MissingField(&'static str),
+    UnexpectedUnit(String),
     InvalidDecimal,
     NumericOverflow,
     InvalidBlockHeight,
@@ -359,6 +372,7 @@ impl fmt::Display for NetworkFeedError {
             Self::HttpStatus(status) => write!(f, "network endpoint returned HTTP status {status}"),
             Self::Json(error) => write!(f, "invalid network provider JSON: {error}"),
             Self::MissingField(field) => write!(f, "network provider response missing {field}"),
+            Self::UnexpectedUnit(unit) => write!(f, "unexpected network metric unit: {unit}"),
             Self::InvalidDecimal => write!(f, "invalid decimal network metric"),
             Self::NumericOverflow => write!(f, "network metric exceeds integer range"),
             Self::InvalidBlockHeight => write!(f, "invalid Bitcoin block height"),
@@ -392,7 +406,9 @@ mod tests {
             } else if endpoint == BLOCKCHAIN_HEIGHT_ENDPOINT {
                 "840000".to_owned()
             } else {
-                return Err(TransportError::HostForbidden("unexpected fixture endpoint".to_owned()));
+                return Err(TransportError::HostForbidden(
+                    "unexpected fixture endpoint".to_owned(),
+                ));
             };
             Ok(HttpResponse {
                 status: self.status,
@@ -456,6 +472,11 @@ mod tests {
             Ok(EXPECTED_HASHRATE)
         );
         assert_eq!(parse_decimal_scaled_floor("1.999", 0), Ok(1));
+        assert_eq!(parse_decimal_scaled_floor("1e-999999", 0), Ok(0));
+        assert!(matches!(
+            parse_decimal_scaled_floor("1e999999", 0),
+            Err(NetworkFeedError::NumericOverflow)
+        ));
     }
 
     #[test]

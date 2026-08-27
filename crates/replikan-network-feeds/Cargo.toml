@@ -1,0 +1,17 @@
+[package]
+name = "replikan-network-feeds"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-core = { path = "../replikan-core" }
+replikan-market-http = { path = "../replikan-market-http" }
+replikan-mining-market = { path = "../replikan-mining-market" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+
+[lints]
+workspace = true

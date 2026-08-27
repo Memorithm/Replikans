@@ -1,0 +1,17 @@
+[package]
+name = "replikan-market-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-core = { path = "../replikan-core" }
+replikan-market-feeds = { path = "../replikan-market-feeds" }
+replikan-mining-market = { path = "../replikan-mining-market" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+
+[lints]
+workspace = true

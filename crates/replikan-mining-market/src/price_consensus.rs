@@ -101,8 +101,7 @@ pub fn derive_price_consensus(
         }
         if observation.observed_at_unix_ms > now_unix_ms
             || now_unix_ms > observation.valid_until_unix_ms
-            || now_unix_ms.saturating_sub(observation.observed_at_unix_ms)
-                > policy.maximum_age_ms
+            || now_unix_ms.saturating_sub(observation.observed_at_unix_ms) > policy.maximum_age_ms
         {
             continue;
         }
@@ -174,8 +173,8 @@ fn enforce_spread(
         / median_micros;
 
     if spread_bps > i128::from(allowed.value()) {
-        let spread_bps = u128::try_from(spread_bps)
-            .map_err(|_| PriceConsensusError::ArithmeticOverflow)?;
+        let spread_bps =
+            u128::try_from(spread_bps).map_err(|_| PriceConsensusError::ArithmeticOverflow)?;
         return Err(PriceConsensusError::SpreadExceeded {
             spread_bps,
             maximum_bps: allowed.value(),
@@ -212,9 +211,15 @@ impl fmt::Display for PriceConsensusError {
             Self::ZeroMinimumSources => write!(f, "price consensus requires at least one source"),
             Self::DuplicateSource(source) => write!(f, "duplicate price source: {source}"),
             Self::AssetMismatch { expected, observed } => {
-                write!(f, "price asset mismatch: expected {expected}, observed {observed}")
+                write!(
+                    f,
+                    "price asset mismatch: expected {expected}, observed {observed}"
+                )
             }
-            Self::InsufficientIndependentSources { required, available } => write!(
+            Self::InsufficientIndependentSources {
+                required,
+                available,
+            } => write!(
                 f,
                 "insufficient independent price sources: required {required}, available {available}"
             ),

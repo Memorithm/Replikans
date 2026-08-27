@@ -13,7 +13,10 @@ pub struct SigningRequest {
 }
 
 impl SigningRequest {
-    pub fn new(domain: impl Into<String>, payload: impl Into<Vec<u8>>) -> Result<Self, SigningRequestError> {
+    pub fn new(
+        domain: impl Into<String>,
+        payload: impl Into<Vec<u8>>,
+    ) -> Result<Self, SigningRequestError> {
         let domain = domain.into();
         if domain.trim().is_empty() {
             return Err(SigningRequestError::EmptyDomain);

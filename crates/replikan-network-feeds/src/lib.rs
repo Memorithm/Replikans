@@ -466,18 +466,20 @@ mod tests {
 
     #[test]
     fn emission_crossing_halving_is_derived_epoch_by_epoch() {
-        let emission = expected_bitcoin_subsidy_emission_sats(839_998, 1_200);
-        assert_eq!(emission, Ok(937_500_000));
+        assert!(matches!(
+            expected_bitcoin_subsidy_emission_sats(839_998, 1_200),
+            Ok(937_500_000)
+        ));
     }
 
     #[test]
     fn arbitrary_precision_decimal_parser_handles_scientific_notation() {
-        assert_eq!(
+        assert!(matches!(
             parse_decimal_scaled_floor("6.5e8", H_PER_TH_DECIMAL_EXPONENT),
-            Ok(EXPECTED_HASHRATE)
-        );
-        assert_eq!(parse_decimal_scaled_floor("1.999", 0), Ok(1));
-        assert_eq!(parse_decimal_scaled_floor("1e-999999", 0), Ok(0));
+            Ok(value) if value == EXPECTED_HASHRATE
+        ));
+        assert!(matches!(parse_decimal_scaled_floor("1.999", 0), Ok(1)));
+        assert!(matches!(parse_decimal_scaled_floor("1e-999999", 0), Ok(0)));
         assert!(matches!(
             parse_decimal_scaled_floor("1e999999", 0),
             Err(NetworkFeedError::NumericOverflow)

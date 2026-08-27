@@ -359,7 +359,10 @@ mod tests {
         }
     }
 
-    fn client(fail_kraken: bool, kraken_price: &'static str) -> MarketPriceHttpClient<FixtureTransport> {
+    fn client(
+        fail_kraken: bool,
+        kraken_price: &'static str,
+    ) -> MarketPriceHttpClient<FixtureTransport> {
         MarketPriceHttpClient::new(FixtureTransport {
             coinbase_price: "100.000000",
             kraken_price,

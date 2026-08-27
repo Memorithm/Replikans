@@ -1,0 +1,17 @@
+[package]
+name = "replikan-bitcoin-pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-core = { path = "../replikan-core" }
+replikan-market-http = { path = "../replikan-market-http" }
+replikan-mining-market = { path = "../replikan-mining-market" }
+replikan-mining-pipeline = { path = "../replikan-mining-pipeline" }
+replikan-network-feeds = { path = "../replikan-network-feeds" }
+
+[lints]
+workspace = true

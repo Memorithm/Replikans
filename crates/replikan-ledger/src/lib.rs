@@ -211,10 +211,7 @@ mod tests {
         };
         assert_eq!(snapshot.realized_revenue, Money::ZERO);
         assert_eq!(snapshot.realized_net_profit(), Money::ZERO);
-        assert_eq!(
-            snapshot.checked_realized_net_profit(),
-            Ok(Money::ZERO)
-        );
+        assert_eq!(snapshot.checked_realized_net_profit(), Ok(Money::ZERO));
         assert_eq!(snapshot.liquid_delta(), Money::from_micros(100_000_000));
         assert_eq!(
             snapshot.checked_liquid_delta(),

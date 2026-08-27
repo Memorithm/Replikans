@@ -135,7 +135,12 @@ mod tests {
             upfront_capital_required: Money::from_micros(20_000_000),
         };
         assert_eq!(
-            evaluate_replication(profitable_parent(), SurvivalState::Critical, child, policy()),
+            evaluate_replication(
+                profitable_parent(),
+                SurvivalState::Critical,
+                child,
+                policy()
+            ),
             ReplicationDecision::Rejected(ReplicationRejection::ParentNotHealthy)
         );
     }
@@ -150,7 +155,12 @@ mod tests {
             upfront_capital_required: Money::from_micros(10_000_000),
         };
         assert_eq!(
-            evaluate_replication(profitable_parent(), SurvivalState::Healthy, child, policy()),
+            evaluate_replication(
+                profitable_parent(),
+                SurvivalState::Healthy,
+                child,
+                policy()
+            ),
             ReplicationDecision::Rejected(ReplicationRejection::ChildNonPositiveExpectedValue)
         );
     }
@@ -165,7 +175,12 @@ mod tests {
             upfront_capital_required: Money::from_micros(60_000_000),
         };
         assert_eq!(
-            evaluate_replication(profitable_parent(), SurvivalState::Healthy, child, policy()),
+            evaluate_replication(
+                profitable_parent(),
+                SurvivalState::Healthy,
+                child,
+                policy()
+            ),
             ReplicationDecision::Rejected(ReplicationRejection::ParentReserveWouldBeViolated)
         );
     }
@@ -180,7 +195,12 @@ mod tests {
             upfront_capital_required: Money::from_micros(30_000_000),
         };
         assert_eq!(
-            evaluate_replication(profitable_parent(), SurvivalState::Healthy, child, policy()),
+            evaluate_replication(
+                profitable_parent(),
+                SurvivalState::Healthy,
+                child,
+                policy()
+            ),
             ReplicationDecision::Allowed
         );
     }

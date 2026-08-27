@@ -6,6 +6,7 @@ members = [
     "crates/replikan-survival",
     "crates/replikan-replication",
     "crates/replikan-ledger",
+    "crates/replikan-decision-ledger",
     "crates/replikan-opportunities",
     "crates/replikan-mining",
     "crates/replikan-mining-market",
@@ -18,6 +19,7 @@ members = [
     "crates/replikan-resource",
     "crates/replikan-authorized-bitcoin-planner",
     "crates/replikan-control",
+    "crates/replikan-cycle",
     "crates/replikan-orchestrator",
     "crates/replikan-cli",
 ]

@@ -1,0 +1,28 @@
+[package]
+name = "replikan-cycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-authorized-bitcoin-planner = { path = "../replikan-authorized-bitcoin-planner" }
+replikan-control = { path = "../replikan-control" }
+replikan-core = { path = "../replikan-core" }
+replikan-decision-ledger = { path = "../replikan-decision-ledger" }
+replikan-economics = { path = "../replikan-economics" }
+replikan-ledger = { path = "../replikan-ledger" }
+replikan-market-http = { path = "../replikan-market-http" }
+replikan-mining-market = { path = "../replikan-mining-market" }
+replikan-mining-pipeline = { path = "../replikan-mining-pipeline" }
+replikan-network-feeds = { path = "../replikan-network-feeds" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+replikan-resource = { path = "../replikan-resource" }
+replikan-survival = { path = "../replikan-survival" }
+
+[dev-dependencies]
+replikan-market-feeds = { path = "../replikan-market-feeds" }
+
+[lints]
+workspace = true

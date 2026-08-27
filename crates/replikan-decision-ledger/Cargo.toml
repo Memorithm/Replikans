@@ -1,0 +1,20 @@
+[package]
+name = "replikan-decision-ledger"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-control = { path = "../replikan-control" }
+replikan-economics = { path = "../replikan-economics" }
+replikan-ledger = { path = "../replikan-ledger" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+replikan-survival = { path = "../replikan-survival" }
+
+[dev-dependencies]
+replikan-core = { path = "../replikan-core" }
+
+[lints]
+workspace = true

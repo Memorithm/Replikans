@@ -1,0 +1,17 @@
+[package]
+name = "replikan-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "replikan"
+path = "src/main.rs"
+
+[dependencies]
+replikan-core = { path = "../replikan-core" }
+
+[lints]
+workspace = true

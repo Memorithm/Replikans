@@ -1,0 +1,8 @@
+/target/
+.env
+.env.*
+*.pem
+*.key
+*.seed
+*.keystore
+wallet.json

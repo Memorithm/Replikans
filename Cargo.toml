@@ -16,6 +16,7 @@ members = [
     "crates/replikan-bitcoin-pipeline",
     "crates/replikan-bitcoin-planner",
     "crates/replikan-resource",
+    "crates/replikan-authorized-bitcoin-planner",
     "crates/replikan-orchestrator",
     "crates/replikan-cli",
 ]

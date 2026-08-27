@@ -86,7 +86,10 @@ mod tests {
             constrained_reserve: Money::from_micros(50_000_000),
             maximum_drawdown: bps(2_000),
         };
-        assert_eq!(classify(fitness(80_000_000, 50_000_000, 500), policy), SurvivalState::Healthy);
+        assert_eq!(
+            classify(fitness(80_000_000, 50_000_000, 500), policy),
+            SurvivalState::Healthy
+        );
     }
 
     #[test]
@@ -96,8 +99,14 @@ mod tests {
             constrained_reserve: Money::from_micros(50_000_000),
             maximum_drawdown: bps(2_000),
         };
-        assert_eq!(classify(fitness(80_000_000, 50_000_000, 2_500), policy), SurvivalState::Critical);
-        assert_eq!(spending_mode(SurvivalState::Critical), SpendingMode::EssentialOnly);
+        assert_eq!(
+            classify(fitness(80_000_000, 50_000_000, 2_500), policy),
+            SurvivalState::Critical
+        );
+        assert_eq!(
+            spending_mode(SurvivalState::Critical),
+            SpendingMode::EssentialOnly
+        );
     }
 
     #[test]

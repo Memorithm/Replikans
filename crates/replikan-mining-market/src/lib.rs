@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod price_consensus;
+
 use core::fmt;
 use replikan_core::{BasisPoints, Money};
 use replikan_mining::{MiningError, MiningObservation};

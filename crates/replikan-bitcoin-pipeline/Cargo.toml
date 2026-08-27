@@ -8,10 +8,12 @@ repository.workspace = true
 
 [dependencies]
 replikan-core = { path = "../replikan-core" }
+replikan-market-feeds = { path = "../replikan-market-feeds" }
 replikan-market-http = { path = "../replikan-market-http" }
 replikan-mining-market = { path = "../replikan-mining-market" }
 replikan-mining-pipeline = { path = "../replikan-mining-pipeline" }
 replikan-network-feeds = { path = "../replikan-network-feeds" }
+replikan-opportunities = { path = "../replikan-opportunities" }
 
 [lints]
 workspace = true

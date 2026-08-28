@@ -42,12 +42,7 @@ impl AdapterDescriptor {
     ) -> Result<Self, ExecutorError> {
         let asset_symbol = asset_symbol.into();
         let algorithm = algorithm.into();
-        if asset_symbol.trim().is_empty() {
-            return Err(ExecutorError::EmptyAssetSymbol);
-        }
-        if algorithm.trim().is_empty() {
-            return Err(ExecutorError::EmptyAlgorithm);
-        }
+        validate_binding_text(&asset_symbol, &algorithm)?;
         Ok(Self {
             id,
             resource_id,
@@ -71,7 +66,7 @@ pub struct MiningActivationRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdapterActivation {
-    pub evidence: String,
+    evidence: String,
 }
 
 impl AdapterActivation {
@@ -81,6 +76,10 @@ impl AdapterActivation {
             return Err(ExecutorError::BlankActivationEvidence);
         }
         Ok(Self { evidence })
+    }
+
+    fn into_evidence(self) -> String {
+        self.evidence
     }
 }
 
@@ -180,6 +179,7 @@ impl<'a> LocalExecutionRegistry<'a> {
 
         for adapter in &adapters {
             let descriptor = adapter.descriptor();
+            validate_binding_text(&descriptor.asset_symbol, &descriptor.algorithm)?;
             if !adapter_ids.insert(descriptor.id.clone()) {
                 return Err(ExecutorError::DuplicateAdapterId(descriptor.id.clone()));
             }
@@ -214,8 +214,8 @@ impl<'a> LocalExecutionRegistry<'a> {
         lease: &MiningExecutionLease,
         now_unix_ms: u64,
     ) -> Result<ExecutionReceipt, ExecutorError> {
-        if lease.action != ExecutionAction::ActivateMining {
-            return Err(ExecutorError::UnsupportedAction);
+        match lease.action {
+            ExecutionAction::ActivateMining => {}
         }
         if !lease.is_active_at(now_unix_ms) {
             return Err(ExecutorError::LeaseInactive);
@@ -247,16 +247,12 @@ impl<'a> LocalExecutionRegistry<'a> {
             lease_valid_until_unix_ms: lease.valid_until_unix_ms,
             requested_at_unix_ms: now_unix_ms,
         };
-
-        let activation = adapter
-            .activate(&request)
-            .map_err(|failure| ExecutorError::AdapterFailed {
+        let activation = adapter.activate(&request).map_err(|failure| {
+            ExecutorError::AdapterFailed {
                 adapter_id: adapter.descriptor().id.clone(),
                 reason: failure.as_str().to_owned(),
-            })?;
-        if activation.evidence.trim().is_empty() {
-            return Err(ExecutorError::BlankActivationEvidence);
-        }
+            }
+        })?;
 
         self.consumed_leases.insert(lease_key);
         Ok(ExecutionReceipt {
@@ -266,9 +262,19 @@ impl<'a> LocalExecutionRegistry<'a> {
             resource_id: lease.resource_id.clone(),
             activated_at_unix_ms: now_unix_ms,
             lease_valid_until_unix_ms: lease.valid_until_unix_ms,
-            evidence: activation.evidence,
+            evidence: activation.into_evidence(),
         })
     }
+}
+
+fn validate_binding_text(asset_symbol: &str, algorithm: &str) -> Result<(), ExecutorError> {
+    if asset_symbol.trim().is_empty() {
+        return Err(ExecutorError::EmptyAssetSymbol);
+    }
+    if algorithm.trim().is_empty() {
+        return Err(ExecutorError::EmptyAlgorithm);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -284,7 +290,6 @@ pub enum ExecutorError {
         asset_symbol: String,
         algorithm: String,
     },
-    UnsupportedAction,
     LeaseInactive,
     LeaseAlreadyConsumed,
     NoMatchingAdapter {
@@ -318,7 +323,6 @@ impl fmt::Display for ExecutorError {
                 "duplicate execution binding for {} {asset_symbol} {algorithm}",
                 resource_id.as_str()
             ),
-            Self::UnsupportedAction => write!(f, "execution action is not supported"),
             Self::LeaseInactive => write!(f, "execution lease is not active"),
             Self::LeaseAlreadyConsumed => write!(f, "execution lease was already consumed"),
             Self::NoMatchingAdapter {
@@ -366,12 +370,7 @@ mod tests {
     }
 
     fn descriptor(id: &str, resource: &str, asset: &str, algorithm: &str) -> AdapterDescriptor {
-        match AdapterDescriptor::new(
-            adapter_id(id),
-            resource_id(resource),
-            asset,
-            algorithm,
-        ) {
+        match AdapterDescriptor::new(adapter_id(id), resource_id(resource), asset, algorithm) {
             Ok(value) => value,
             Err(error) => unreachable!("valid descriptor: {error}"),
         }
@@ -426,11 +425,10 @@ mod tests {
         ) -> Result<AdapterActivation, AdapterFailure> {
             self.calls.set(self.calls.get() + 1);
             if self.fail {
-                let failure = match AdapterFailure::new("device refused activation") {
+                return Err(match AdapterFailure::new("device refused activation") {
                     Ok(value) => value,
                     Err(error) => unreachable!("valid failure: {error}"),
-                };
-                return Err(failure);
+                });
             }
             match AdapterActivation::new("adapter:activation:receipt-1") {
                 Ok(value) => Ok(value),
@@ -441,7 +439,8 @@ mod tests {
 
     #[test]
     fn expired_lease_is_rejected_without_calling_adapter() {
-        let adapter = FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let adapter =
+            FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
         let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
@@ -456,7 +455,8 @@ mod tests {
 
     #[test]
     fn exact_binding_is_required_before_adapter_call() {
-        let adapter = FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let adapter =
+            FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
         let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
@@ -482,7 +482,8 @@ mod tests {
 
     #[test]
     fn successful_dispatch_returns_receipt_and_consumes_lease_once() {
-        let adapter = FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let adapter =
+            FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
         let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
@@ -508,7 +509,8 @@ mod tests {
 
     #[test]
     fn adapter_failure_does_not_consume_lease() {
-        let adapter = FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let adapter =
+            FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
         let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),

@@ -219,8 +219,11 @@ impl ActivationJournal for InMemoryActivationJournal {
         if evidence.trim().is_empty() {
             return Err(journal_failure("activation commit evidence is blank"));
         }
-        let Some(ActivationState::Pending { began_at_unix_ms }) = self.states.get(id).cloned() else {
-            return Err(journal_failure("activation is not pending"));
+        let began_at_unix_ms = match self.states.get(id).cloned() {
+            Some(ActivationState::Pending { began_at_unix_ms }) => began_at_unix_ms,
+            Some(ActivationState::Committed { .. }) | None => {
+                return Err(journal_failure("activation is not pending"));
+            }
         };
         self.states.insert(
             id.clone(),
@@ -344,12 +347,15 @@ where
             })?;
 
         let activation_id = ActivationId::from_lease(lease);
-        match self
-            .journal
-            .state(&activation_id)
-            .map_err(|failure| ExecutorError::JournalBeforeActivation {
-                reason: failure.as_str().to_owned(),
-            })? {
+        let activation_state = match self.journal.state(&activation_id) {
+            Ok(value) => value,
+            Err(failure) => {
+                return Err(ExecutorError::JournalBeforeActivation {
+                    reason: failure.as_str().to_owned(),
+                });
+            }
+        };
+        match activation_state {
             Some(ActivationState::Pending { .. }) => {
                 return Err(ExecutorError::ActivationUncertain(activation_id));
             }
@@ -359,11 +365,11 @@ where
             None => {}
         }
 
-        self.journal
-            .begin(activation_id.clone(), now_unix_ms)
-            .map_err(|failure| ExecutorError::JournalBeforeActivation {
+        if let Err(failure) = self.journal.begin(activation_id.clone(), now_unix_ms) {
+            return Err(ExecutorError::JournalBeforeActivation {
                 reason: failure.as_str().to_owned(),
-            })?;
+            });
+        }
 
         let request = MiningActivationRequest {
             activation_id: activation_id.clone(),
@@ -373,22 +379,25 @@ where
             lease_valid_until_unix_ms: lease.valid_until_unix_ms,
             requested_at_unix_ms: now_unix_ms,
         };
-        let activation = adapter.activate(&request).map_err(|failure| {
-            ExecutorError::AdapterFailedActivationUncertain {
-                activation_id: activation_id.clone(),
-                adapter_id: adapter.descriptor().id.clone(),
-                reason: failure.as_str().to_owned(),
+        let activation = match adapter.activate(&request) {
+            Ok(value) => value,
+            Err(failure) => {
+                return Err(ExecutorError::AdapterFailedActivationUncertain {
+                    activation_id,
+                    adapter_id: adapter.descriptor().id.clone(),
+                    reason: failure.as_str().to_owned(),
+                });
             }
-        })?;
+        };
         let evidence = activation.into_evidence();
 
-        self.journal
-            .commit(&activation_id, now_unix_ms, &evidence)
-            .map_err(|failure| ExecutorError::JournalCommitFailedAfterActivation {
-                activation_id: activation_id.clone(),
-                evidence: evidence.clone(),
+        if let Err(failure) = self.journal.commit(&activation_id, now_unix_ms, &evidence) {
+            return Err(ExecutorError::JournalCommitFailedAfterActivation {
+                activation_id,
+                evidence,
                 reason: failure.as_str().to_owned(),
-            })?;
+            });
+        }
 
         Ok(ExecutionReceipt {
             activation_id,
@@ -597,10 +606,11 @@ mod tests {
         ) -> Result<AdapterActivation, AdapterFailure> {
             self.calls.set(self.calls.get() + 1);
             if self.fail {
-                return Err(match AdapterFailure::new("device activation outcome unknown") {
+                let failure = match AdapterFailure::new("device activation outcome unknown") {
                     Ok(value) => value,
                     Err(error) => unreachable!("valid failure: {error}"),
-                });
+                };
+                return Err(failure);
             }
             match AdapterActivation::new("adapter:activation:receipt-1") {
                 Ok(value) => Ok(value),
@@ -609,17 +619,20 @@ mod tests {
         }
     }
 
+    fn registry<'a>(
+        adapter: &'a FakeAdapter,
+    ) -> LocalExecutionRegistry<'a, InMemoryActivationJournal> {
+        match LocalExecutionRegistry::new(vec![adapter], InMemoryActivationJournal::default()) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid registry: {error}"),
+        }
+    }
+
     #[test]
     fn expired_lease_is_rejected_without_calling_adapter() {
         let adapter =
             FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(
-            vec![&adapter],
-            InMemoryActivationJournal::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => unreachable!("valid registry: {error}"),
-        };
+        let mut registry = registry(&adapter);
 
         assert_eq!(
             registry.dispatch(&lease("asic-0", "BTC", "sha256d"), 2_001),
@@ -633,13 +646,7 @@ mod tests {
     fn exact_binding_is_required_before_journal_or_adapter_call() {
         let adapter =
             FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(
-            vec![&adapter],
-            InMemoryActivationJournal::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => unreachable!("valid registry: {error}"),
-        };
+        let mut registry = registry(&adapter);
 
         assert!(matches!(
             registry.dispatch(&lease("asic-0", "BTC", "scrypt"), 1_500),
@@ -667,13 +674,7 @@ mod tests {
     fn successful_dispatch_commits_and_cannot_replay() {
         let adapter =
             FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(
-            vec![&adapter],
-            InMemoryActivationJournal::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => unreachable!("valid registry: {error}"),
-        };
+        let mut registry = registry(&adapter);
         let lease = lease("asic-0", "BTC", "sha256d");
         let activation_id = ActivationId::from_lease(&lease);
 
@@ -699,15 +700,8 @@ mod tests {
 
     #[test]
     fn adapter_failure_leaves_pending_state_and_blocks_automatic_retry() {
-        let adapter =
-            FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(
-            vec![&adapter],
-            InMemoryActivationJournal::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => unreachable!("valid registry: {error}"),
-        };
+        let adapter = FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let mut registry = registry(&adapter);
         let lease = lease("asic-0", "BTC", "sha256d");
         let activation_id = ActivationId::from_lease(&lease);
 
@@ -757,11 +751,7 @@ mod tests {
             self.inner.state(id)
         }
 
-        fn begin(
-            &mut self,
-            id: ActivationId,
-            began_at_unix_ms: u64,
-        ) -> Result<(), JournalFailure> {
+        fn begin(&mut self, id: ActivationId, began_at_unix_ms: u64) -> Result<(), JournalFailure> {
             self.inner.begin(id, began_at_unix_ms)
         }
 

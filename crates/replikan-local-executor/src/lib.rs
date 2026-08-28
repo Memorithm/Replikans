@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use core::fmt;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use replikan_execution_lease::{ExecutionAction, MiningExecutionLease};
 use replikan_opportunities::OpportunityId;
@@ -52,11 +52,27 @@ impl AdapterDescriptor {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MiningActivationRequest {
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ActivationId {
     pub decision_sequence: u64,
     pub opportunity_id: OpportunityId,
     pub resource_id: ResourceId,
+}
+
+impl ActivationId {
+    #[must_use]
+    pub fn from_lease(lease: &MiningExecutionLease) -> Self {
+        Self {
+            decision_sequence: lease.decision_sequence,
+            opportunity_id: lease.opportunity_id.clone(),
+            resource_id: lease.resource_id.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MiningActivationRequest {
+    pub activation_id: ActivationId,
     pub asset_symbol: String,
     pub algorithm: String,
     pub lease_issued_at_unix_ms: u64,
@@ -103,6 +119,7 @@ impl AdapterFailure {
 
 /// Capability adapter for one explicitly registered local mining activation.
 ///
+/// Implementations must treat `request.activation_id` as their idempotency key.
 /// The interface intentionally contains no executable path, command string,
 /// argv, environment map, shell, remote host, wallet, or payout parameter.
 pub trait MiningActivationAdapter {
@@ -112,6 +129,116 @@ pub trait MiningActivationAdapter {
         &self,
         request: &MiningActivationRequest,
     ) -> Result<AdapterActivation, AdapterFailure>;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ActivationState {
+    Pending {
+        began_at_unix_ms: u64,
+    },
+    Committed {
+        began_at_unix_ms: u64,
+        committed_at_unix_ms: u64,
+        evidence: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct JournalFailure(String);
+
+impl JournalFailure {
+    pub fn new(reason: impl Into<String>) -> Result<Self, ExecutorError> {
+        let reason = reason.into();
+        if reason.trim().is_empty() {
+            return Err(ExecutorError::BlankJournalFailure);
+        }
+        Ok(Self(reason))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Persistence boundary for activation idempotency.
+///
+/// Production implementations should persist this state durably. A `Pending`
+/// entry is deliberately fail-closed: after a crash, Replikans must reconcile
+/// the real device state before any retry for the same activation id.
+pub trait ActivationJournal {
+    fn state(&self, id: &ActivationId) -> Result<Option<ActivationState>, JournalFailure>;
+
+    fn begin(&mut self, id: ActivationId, began_at_unix_ms: u64) -> Result<(), JournalFailure>;
+
+    fn commit(
+        &mut self,
+        id: &ActivationId,
+        committed_at_unix_ms: u64,
+        evidence: &str,
+    ) -> Result<(), JournalFailure>;
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct InMemoryActivationJournal {
+    states: BTreeMap<ActivationId, ActivationState>,
+}
+
+impl InMemoryActivationJournal {
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.states.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.states.is_empty()
+    }
+}
+
+impl ActivationJournal for InMemoryActivationJournal {
+    fn state(&self, id: &ActivationId) -> Result<Option<ActivationState>, JournalFailure> {
+        Ok(self.states.get(id).cloned())
+    }
+
+    fn begin(&mut self, id: ActivationId, began_at_unix_ms: u64) -> Result<(), JournalFailure> {
+        if self.states.contains_key(&id) {
+            return Err(journal_failure("activation already has journal state"));
+        }
+        self.states
+            .insert(id, ActivationState::Pending { began_at_unix_ms });
+        Ok(())
+    }
+
+    fn commit(
+        &mut self,
+        id: &ActivationId,
+        committed_at_unix_ms: u64,
+        evidence: &str,
+    ) -> Result<(), JournalFailure> {
+        if evidence.trim().is_empty() {
+            return Err(journal_failure("activation commit evidence is blank"));
+        }
+        let Some(ActivationState::Pending { began_at_unix_ms }) = self.states.get(id).cloned() else {
+            return Err(journal_failure("activation is not pending"));
+        };
+        self.states.insert(
+            id.clone(),
+            ActivationState::Committed {
+                began_at_unix_ms,
+                committed_at_unix_ms,
+                evidence: evidence.to_owned(),
+            },
+        );
+        Ok(())
+    }
+}
+
+fn journal_failure(reason: &str) -> JournalFailure {
+    match JournalFailure::new(reason) {
+        Ok(value) => value,
+        Err(error) => unreachable!("static journal failure reason is valid: {error}"),
+    }
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -139,41 +266,28 @@ impl BindingKey {
     }
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct LeaseKey {
-    decision_sequence: u64,
-    opportunity_id: OpportunityId,
-    resource_id: ResourceId,
-}
-
-impl LeaseKey {
-    fn from_lease(lease: &MiningExecutionLease) -> Self {
-        Self {
-            decision_sequence: lease.decision_sequence,
-            opportunity_id: lease.opportunity_id.clone(),
-            resource_id: lease.resource_id.clone(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutionReceipt {
+    pub activation_id: ActivationId,
     pub adapter_id: AdapterId,
-    pub decision_sequence: u64,
-    pub opportunity_id: OpportunityId,
-    pub resource_id: ResourceId,
     pub activated_at_unix_ms: u64,
     pub lease_valid_until_unix_ms: u64,
     pub evidence: String,
 }
 
-pub struct LocalExecutionRegistry<'a> {
+pub struct LocalExecutionRegistry<'a, J> {
     adapters: Vec<&'a dyn MiningActivationAdapter>,
-    consumed_leases: BTreeSet<LeaseKey>,
+    journal: J,
 }
 
-impl<'a> LocalExecutionRegistry<'a> {
-    pub fn new(adapters: Vec<&'a dyn MiningActivationAdapter>) -> Result<Self, ExecutorError> {
+impl<'a, J> LocalExecutionRegistry<'a, J>
+where
+    J: ActivationJournal,
+{
+    pub fn new(
+        adapters: Vec<&'a dyn MiningActivationAdapter>,
+        journal: J,
+    ) -> Result<Self, ExecutorError> {
         let mut adapter_ids = BTreeSet::new();
         let mut bindings = BTreeSet::new();
 
@@ -193,10 +307,7 @@ impl<'a> LocalExecutionRegistry<'a> {
             }
         }
 
-        Ok(Self {
-            adapters,
-            consumed_leases: BTreeSet::new(),
-        })
+        Ok(Self { adapters, journal })
     }
 
     #[must_use]
@@ -205,8 +316,8 @@ impl<'a> LocalExecutionRegistry<'a> {
     }
 
     #[must_use]
-    pub fn consumed_lease_count(&self) -> usize {
-        self.consumed_leases.len()
+    pub fn journal(&self) -> &J {
+        &self.journal
     }
 
     pub fn dispatch(
@@ -221,11 +332,6 @@ impl<'a> LocalExecutionRegistry<'a> {
             return Err(ExecutorError::LeaseInactive);
         }
 
-        let lease_key = LeaseKey::from_lease(lease);
-        if self.consumed_leases.contains(&lease_key) {
-            return Err(ExecutorError::LeaseAlreadyConsumed);
-        }
-
         let binding = BindingKey::from_lease(lease);
         let adapter = self
             .adapters
@@ -237,33 +343,59 @@ impl<'a> LocalExecutionRegistry<'a> {
                 algorithm: lease.algorithm.clone(),
             })?;
 
+        let activation_id = ActivationId::from_lease(lease);
+        match self
+            .journal
+            .state(&activation_id)
+            .map_err(|failure| ExecutorError::JournalBeforeActivation {
+                reason: failure.as_str().to_owned(),
+            })? {
+            Some(ActivationState::Pending { .. }) => {
+                return Err(ExecutorError::ActivationUncertain(activation_id));
+            }
+            Some(ActivationState::Committed { .. }) => {
+                return Err(ExecutorError::LeaseAlreadyConsumed);
+            }
+            None => {}
+        }
+
+        self.journal
+            .begin(activation_id.clone(), now_unix_ms)
+            .map_err(|failure| ExecutorError::JournalBeforeActivation {
+                reason: failure.as_str().to_owned(),
+            })?;
+
         let request = MiningActivationRequest {
-            decision_sequence: lease.decision_sequence,
-            opportunity_id: lease.opportunity_id.clone(),
-            resource_id: lease.resource_id.clone(),
+            activation_id: activation_id.clone(),
             asset_symbol: lease.asset_symbol.clone(),
             algorithm: lease.algorithm.clone(),
             lease_issued_at_unix_ms: lease.issued_at_unix_ms,
             lease_valid_until_unix_ms: lease.valid_until_unix_ms,
             requested_at_unix_ms: now_unix_ms,
         };
-        let activation =
-            adapter
-                .activate(&request)
-                .map_err(|failure| ExecutorError::AdapterFailed {
-                    adapter_id: adapter.descriptor().id.clone(),
-                    reason: failure.as_str().to_owned(),
-                })?;
+        let activation = adapter.activate(&request).map_err(|failure| {
+            ExecutorError::AdapterFailedActivationUncertain {
+                activation_id: activation_id.clone(),
+                adapter_id: adapter.descriptor().id.clone(),
+                reason: failure.as_str().to_owned(),
+            }
+        })?;
+        let evidence = activation.into_evidence();
 
-        self.consumed_leases.insert(lease_key);
+        self.journal
+            .commit(&activation_id, now_unix_ms, &evidence)
+            .map_err(|failure| ExecutorError::JournalCommitFailedAfterActivation {
+                activation_id: activation_id.clone(),
+                evidence: evidence.clone(),
+                reason: failure.as_str().to_owned(),
+            })?;
+
         Ok(ExecutionReceipt {
+            activation_id,
             adapter_id: adapter.descriptor().id.clone(),
-            decision_sequence: lease.decision_sequence,
-            opportunity_id: lease.opportunity_id.clone(),
-            resource_id: lease.resource_id.clone(),
             activated_at_unix_ms: now_unix_ms,
             lease_valid_until_unix_ms: lease.valid_until_unix_ms,
-            evidence: activation.into_evidence(),
+            evidence,
         })
     }
 }
@@ -285,6 +417,7 @@ pub enum ExecutorError {
     EmptyAlgorithm,
     BlankActivationEvidence,
     BlankAdapterFailure,
+    BlankJournalFailure,
     DuplicateAdapterId(AdapterId),
     DuplicateBinding {
         resource_id: ResourceId,
@@ -293,13 +426,23 @@ pub enum ExecutorError {
     },
     LeaseInactive,
     LeaseAlreadyConsumed,
+    ActivationUncertain(ActivationId),
     NoMatchingAdapter {
         resource_id: ResourceId,
         asset_symbol: String,
         algorithm: String,
     },
-    AdapterFailed {
+    JournalBeforeActivation {
+        reason: String,
+    },
+    AdapterFailedActivationUncertain {
+        activation_id: ActivationId,
         adapter_id: AdapterId,
+        reason: String,
+    },
+    JournalCommitFailedAfterActivation {
+        activation_id: ActivationId,
+        evidence: String,
         reason: String,
     },
 }
@@ -312,6 +455,7 @@ impl fmt::Display for ExecutorError {
             Self::EmptyAlgorithm => write!(f, "adapter algorithm cannot be empty"),
             Self::BlankActivationEvidence => write!(f, "activation evidence cannot be blank"),
             Self::BlankAdapterFailure => write!(f, "adapter failure reason cannot be blank"),
+            Self::BlankJournalFailure => write!(f, "journal failure reason cannot be blank"),
             Self::DuplicateAdapterId(id) => {
                 write!(f, "duplicate execution adapter id: {}", id.as_str())
             }
@@ -325,7 +469,13 @@ impl fmt::Display for ExecutorError {
                 resource_id.as_str()
             ),
             Self::LeaseInactive => write!(f, "execution lease is not active"),
-            Self::LeaseAlreadyConsumed => write!(f, "execution lease was already consumed"),
+            Self::LeaseAlreadyConsumed => write!(f, "execution lease was already committed"),
+            Self::ActivationUncertain(id) => write!(
+                f,
+                "activation {}:{} is pending and requires reconciliation",
+                id.decision_sequence,
+                id.opportunity_id.as_str()
+            ),
             Self::NoMatchingAdapter {
                 resource_id,
                 asset_symbol,
@@ -335,9 +485,30 @@ impl fmt::Display for ExecutorError {
                 "no allowlisted adapter matches {} {asset_symbol} {algorithm}",
                 resource_id.as_str()
             ),
-            Self::AdapterFailed { adapter_id, reason } => {
-                write!(f, "adapter {} failed: {reason}", adapter_id.as_str())
+            Self::JournalBeforeActivation { reason } => {
+                write!(f, "activation journal failed before execution: {reason}")
             }
+            Self::AdapterFailedActivationUncertain {
+                activation_id,
+                adapter_id,
+                reason,
+            } => write!(
+                f,
+                "adapter {} failed for activation {}:{}; state is uncertain: {reason}",
+                adapter_id.as_str(),
+                activation_id.decision_sequence,
+                activation_id.opportunity_id.as_str()
+            ),
+            Self::JournalCommitFailedAfterActivation {
+                activation_id,
+                evidence,
+                reason,
+            } => write!(
+                f,
+                "activation {}:{} succeeded with evidence {evidence}, but journal commit failed: {reason}",
+                activation_id.decision_sequence,
+                activation_id.opportunity_id.as_str()
+            ),
         }
     }
 }
@@ -426,7 +597,7 @@ mod tests {
         ) -> Result<AdapterActivation, AdapterFailure> {
             self.calls.set(self.calls.get() + 1);
             if self.fail {
-                return Err(match AdapterFailure::new("device refused activation") {
+                return Err(match AdapterFailure::new("device activation outcome unknown") {
                     Ok(value) => value,
                     Err(error) => unreachable!("valid failure: {error}"),
                 });
@@ -442,7 +613,10 @@ mod tests {
     fn expired_lease_is_rejected_without_calling_adapter() {
         let adapter =
             FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
+        let mut registry = match LocalExecutionRegistry::new(
+            vec![&adapter],
+            InMemoryActivationJournal::default(),
+        ) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
         };
@@ -452,13 +626,17 @@ mod tests {
             Err(ExecutorError::LeaseInactive)
         );
         assert_eq!(adapter.calls.get(), 0);
+        assert!(registry.journal().is_empty());
     }
 
     #[test]
-    fn exact_binding_is_required_before_adapter_call() {
+    fn exact_binding_is_required_before_journal_or_adapter_call() {
         let adapter =
             FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
+        let mut registry = match LocalExecutionRegistry::new(
+            vec![&adapter],
+            InMemoryActivationJournal::default(),
+        ) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
         };
@@ -468,6 +646,7 @@ mod tests {
             Err(ExecutorError::NoMatchingAdapter { .. })
         ));
         assert_eq!(adapter.calls.get(), 0);
+        assert!(registry.journal().is_empty());
     }
 
     #[test]
@@ -476,30 +655,40 @@ mod tests {
         let second = FakeAdapter::successful(descriptor("second", "asic-0", "BTC", "sha256d"));
 
         assert!(matches!(
-            LocalExecutionRegistry::new(vec![&first, &second]),
+            LocalExecutionRegistry::new(
+                vec![&first, &second],
+                InMemoryActivationJournal::default()
+            ),
             Err(ExecutorError::DuplicateBinding { .. })
         ));
     }
 
     #[test]
-    fn successful_dispatch_returns_receipt_and_consumes_lease_once() {
+    fn successful_dispatch_commits_and_cannot_replay() {
         let adapter =
             FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
+        let mut registry = match LocalExecutionRegistry::new(
+            vec![&adapter],
+            InMemoryActivationJournal::default(),
+        ) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
         };
         let lease = lease("asic-0", "BTC", "sha256d");
+        let activation_id = ActivationId::from_lease(&lease);
 
         let receipt = match registry.dispatch(&lease, 1_500) {
             Ok(value) => value,
             Err(error) => unreachable!("valid dispatch: {error}"),
         };
         assert_eq!(receipt.adapter_id.as_str(), "asic-adapter");
-        assert_eq!(receipt.decision_sequence, 7);
+        assert_eq!(receipt.activation_id, activation_id);
         assert_eq!(receipt.evidence, "adapter:activation:receipt-1");
-        assert_eq!(registry.consumed_lease_count(), 1);
         assert_eq!(adapter.calls.get(), 1);
+        assert!(matches!(
+            registry.journal().state(&activation_id),
+            Ok(Some(ActivationState::Committed { .. }))
+        ));
 
         assert_eq!(
             registry.dispatch(&lease, 1_501),
@@ -509,20 +698,106 @@ mod tests {
     }
 
     #[test]
-    fn adapter_failure_does_not_consume_lease() {
-        let adapter = FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
-        let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
+    fn adapter_failure_leaves_pending_state_and_blocks_automatic_retry() {
+        let adapter =
+            FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let mut registry = match LocalExecutionRegistry::new(
+            vec![&adapter],
+            InMemoryActivationJournal::default(),
+        ) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),
         };
         let lease = lease("asic-0", "BTC", "sha256d");
+        let activation_id = ActivationId::from_lease(&lease);
 
         assert!(matches!(
             registry.dispatch(&lease, 1_500),
-            Err(ExecutorError::AdapterFailed { .. })
+            Err(ExecutorError::AdapterFailedActivationUncertain { .. })
         ));
-        assert_eq!(registry.consumed_lease_count(), 0);
         assert_eq!(adapter.calls.get(), 1);
+        assert!(matches!(
+            registry.journal().state(&activation_id),
+            Ok(Some(ActivationState::Pending { .. }))
+        ));
+
+        assert_eq!(
+            registry.dispatch(&lease, 1_501),
+            Err(ExecutorError::ActivationUncertain(activation_id))
+        );
+        assert_eq!(adapter.calls.get(), 1);
+    }
+
+    #[test]
+    fn preexisting_pending_state_blocks_adapter_call() {
+        let adapter =
+            FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let lease = lease("asic-0", "BTC", "sha256d");
+        let activation_id = ActivationId::from_lease(&lease);
+        let mut journal = InMemoryActivationJournal::default();
+        assert!(journal.begin(activation_id.clone(), 1_400).is_ok());
+        let mut registry = match LocalExecutionRegistry::new(vec![&adapter], journal) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid registry: {error}"),
+        };
+
+        assert_eq!(
+            registry.dispatch(&lease, 1_500),
+            Err(ExecutorError::ActivationUncertain(activation_id))
+        );
+        assert_eq!(adapter.calls.get(), 0);
+    }
+
+    struct CommitFailJournal {
+        inner: InMemoryActivationJournal,
+    }
+
+    impl ActivationJournal for CommitFailJournal {
+        fn state(&self, id: &ActivationId) -> Result<Option<ActivationState>, JournalFailure> {
+            self.inner.state(id)
+        }
+
+        fn begin(
+            &mut self,
+            id: ActivationId,
+            began_at_unix_ms: u64,
+        ) -> Result<(), JournalFailure> {
+            self.inner.begin(id, began_at_unix_ms)
+        }
+
+        fn commit(
+            &mut self,
+            _id: &ActivationId,
+            _committed_at_unix_ms: u64,
+            _evidence: &str,
+        ) -> Result<(), JournalFailure> {
+            Err(journal_failure("simulated durable commit failure"))
+        }
+    }
+
+    #[test]
+    fn commit_failure_after_activation_preserves_pending_reconciliation_state() {
+        let adapter =
+            FakeAdapter::successful(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let journal = CommitFailJournal {
+            inner: InMemoryActivationJournal::default(),
+        };
+        let mut registry = match LocalExecutionRegistry::new(vec![&adapter], journal) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid registry: {error}"),
+        };
+        let lease = lease("asic-0", "BTC", "sha256d");
+        let activation_id = ActivationId::from_lease(&lease);
+
+        assert!(matches!(
+            registry.dispatch(&lease, 1_500),
+            Err(ExecutorError::JournalCommitFailedAfterActivation { .. })
+        ));
+        assert_eq!(adapter.calls.get(), 1);
+        assert!(matches!(
+            registry.journal().state(&activation_id),
+            Ok(Some(ActivationState::Pending { .. }))
+        ));
     }
 
     #[test]
@@ -531,7 +806,11 @@ mod tests {
         let second = FakeAdapter::successful(descriptor("same", "asic-1", "BTC", "sha256d"));
 
         assert_eq!(
-            LocalExecutionRegistry::new(vec![&first, &second]).err(),
+            LocalExecutionRegistry::new(
+                vec![&first, &second],
+                InMemoryActivationJournal::default()
+            )
+            .err(),
             Some(ExecutorError::DuplicateAdapterId(adapter_id("same")))
         );
     }

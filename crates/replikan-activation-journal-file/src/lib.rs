@@ -6,21 +6,18 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use replikan_local_executor::{
-    ActivationId, ActivationJournal, ActivationState, JournalFailure,
-};
+use replikan_local_executor::{ActivationId, ActivationJournal, ActivationState, JournalFailure};
 use replikan_opportunities::OpportunityId;
 use replikan_resource::ResourceId;
 
 const JOURNAL_HEADER: &str = "REPLIKANS_ACTIVATION_JOURNAL_V1";
 
-/// Durable append-only backend for `ActivationJournal`.
+/// Durable append-only backend for activation idempotency.
 ///
-/// Records are synced before the in-memory state advances. A malformed,
-/// truncated, or invalid state transition makes `open` fail closed. The
-/// adjacent lock directory enforces a single writer; an unclean process crash
-/// intentionally leaves that lock behind so a reconciliation step is required
-/// before execution resumes.
+/// Records are synced before the in-memory state advances. Malformed or
+/// truncated input fails closed. An adjacent lock directory enforces one
+/// writer and is deliberately left behind by an unclean process crash, so
+/// execution cannot resume until that crash has been reconciled explicitly.
 pub struct FileActivationJournal {
     path: PathBuf,
     file: File,
@@ -35,13 +32,9 @@ impl FileActivationJournal {
             return Err(failure("activation journal path cannot be empty"));
         }
         reject_symlink(&path)?;
-
         let lock = ExclusivePathLock::acquire(&path)?;
-        let existing = match fs::read(&path) {
-            Ok(bytes) => Some(bytes),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(error) => return Err(io_failure("read activation journal", &error)),
-        };
+
+        let existing = read_existing(&path)?;
         let states = match existing.as_deref() {
             Some(bytes) => parse_journal(bytes)?,
             None => BTreeMap::new(),
@@ -57,10 +50,7 @@ impl FileActivationJournal {
         reject_unsafe_permissions(&file)?;
 
         if existing.is_none() {
-            file.write_all(JOURNAL_HEADER.as_bytes())
-                .and_then(|()| file.write_all(b"\n"))
-                .and_then(|()| file.sync_all())
-                .map_err(|error| io_failure("initialize activation journal", &error))?;
+            write_synced(&mut file, JOURNAL_HEADER)?;
             sync_parent_directory(&path)?;
         }
 
@@ -91,11 +81,7 @@ impl FileActivationJournal {
         if record.contains('\n') || record.contains('\r') {
             return Err(failure("activation journal record contains a newline"));
         }
-        self.file
-            .write_all(record.as_bytes())
-            .and_then(|()| self.file.write_all(b"\n"))
-            .and_then(|()| self.file.sync_all())
-            .map_err(|error| io_failure("append activation journal record", &error))
+        write_synced(&mut self.file, record)
     }
 }
 
@@ -108,8 +94,7 @@ impl ActivationJournal for FileActivationJournal {
         if self.states.contains_key(&id) {
             return Err(failure("activation already has durable journal state"));
         }
-        let record = encode_pending(&id, began_at_unix_ms);
-        self.append_record(&record)?;
+        self.append_record(&encode_pending(&id, began_at_unix_ms))?;
         self.states
             .insert(id, ActivationState::Pending { began_at_unix_ms });
         Ok(())
@@ -124,12 +109,7 @@ impl ActivationJournal for FileActivationJournal {
         if evidence.trim().is_empty() {
             return Err(failure("activation commit evidence is blank"));
         }
-        let began_at_unix_ms = match self.states.get(id) {
-            Some(ActivationState::Pending { began_at_unix_ms }) => *began_at_unix_ms,
-            Some(ActivationState::Committed { .. }) | None => {
-                return Err(failure("activation is not pending"));
-            }
-        };
+        let began_at_unix_ms = pending_begin(&self.states, id)?;
         if committed_at_unix_ms < began_at_unix_ms {
             return Err(failure("activation commit timestamp regressed"));
         }
@@ -145,6 +125,31 @@ impl ActivationJournal for FileActivationJournal {
             },
         );
         Ok(())
+    }
+}
+
+fn read_existing(path: &Path) -> Result<Option<Vec<u8>>, JournalFailure> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(io_failure("read activation journal", &error)),
+    }
+}
+
+fn write_synced(file: &mut File, record: &str) -> Result<(), JournalFailure> {
+    file.write_all(record.as_bytes())
+        .and_then(|()| file.write_all(b"\n"))
+        .and_then(|()| file.sync_all())
+        .map_err(|error| io_failure("write activation journal", &error))
+}
+
+fn pending_begin(
+    states: &BTreeMap<ActivationId, ActivationState>,
+    id: &ActivationId,
+) -> Result<u64, JournalFailure> {
+    match states.get(id) {
+        Some(ActivationState::Pending { began_at_unix_ms }) => Ok(*began_at_unix_ms),
+        Some(ActivationState::Committed { .. }) | None => Err(failure("activation is not pending")),
     }
 }
 
@@ -176,8 +181,10 @@ fn encode_committed(
 }
 
 fn parse_journal(bytes: &[u8]) -> Result<BTreeMap<ActivationId, ActivationState>, JournalFailure> {
-    let text = std::str::from_utf8(bytes)
-        .map_err(|_| failure("activation journal is not valid UTF-8"))?;
+    let text = match std::str::from_utf8(bytes) {
+        Ok(value) => value,
+        Err(_) => return Err(failure("activation journal is not valid UTF-8")),
+    };
     if !text.ends_with('\n') {
         return Err(failure("activation journal is truncated"));
     }
@@ -202,50 +209,54 @@ fn parse_record(
     states: &mut BTreeMap<ActivationId, ActivationState>,
 ) -> Result<(), JournalFailure> {
     let fields = line.split('|').collect::<Vec<_>>();
-    match fields.as_slice() {
-        ["P", sequence, opportunity, resource, began] => {
-            let id = decode_activation_id(sequence, opportunity, resource)?;
-            let began_at_unix_ms = parse_u64(began, "pending timestamp")?;
-            if states.contains_key(&id) {
-                return Err(failure("duplicate pending activation record"));
-            }
-            states.insert(id, ActivationState::Pending { began_at_unix_ms });
-            Ok(())
-        }
-        ["C", sequence, opportunity, resource, began, committed, evidence] => {
-            let id = decode_activation_id(sequence, opportunity, resource)?;
-            let began_at_unix_ms = parse_u64(began, "begin timestamp")?;
-            let committed_at_unix_ms = parse_u64(committed, "commit timestamp")?;
-            if committed_at_unix_ms < began_at_unix_ms {
-                return Err(failure("committed activation timestamp regressed"));
-            }
-            let evidence = decode_text(evidence, "activation evidence")?;
-            if evidence.trim().is_empty() {
-                return Err(failure("committed activation evidence is blank"));
-            }
-            match states.get(&id) {
-                Some(ActivationState::Pending {
-                    began_at_unix_ms: pending_began,
-                }) if *pending_began == began_at_unix_ms => {}
-                Some(ActivationState::Pending { .. }) => {
-                    return Err(failure("activation begin timestamp changed before commit"));
-                }
-                Some(ActivationState::Committed { .. }) | None => {
-                    return Err(failure("commit record has no matching pending activation"));
-                }
-            }
-            states.insert(
-                id,
-                ActivationState::Committed {
-                    began_at_unix_ms,
-                    committed_at_unix_ms,
-                    evidence,
-                },
-            );
-            Ok(())
-        }
+    match fields.first().copied() {
+        Some("P") if fields.len() == 5 => parse_pending_fields(&fields, states),
+        Some("C") if fields.len() == 7 => parse_committed_fields(&fields, states),
         _ => Err(failure("activation journal record shape is invalid")),
     }
+}
+
+fn parse_pending_fields(
+    fields: &[&str],
+    states: &mut BTreeMap<ActivationId, ActivationState>,
+) -> Result<(), JournalFailure> {
+    let id = decode_activation_id(fields[1], fields[2], fields[3])?;
+    let began_at_unix_ms = parse_u64(fields[4], "pending timestamp")?;
+    if states.contains_key(&id) {
+        return Err(failure("duplicate pending activation record"));
+    }
+    states.insert(id, ActivationState::Pending { began_at_unix_ms });
+    Ok(())
+}
+
+fn parse_committed_fields(
+    fields: &[&str],
+    states: &mut BTreeMap<ActivationId, ActivationState>,
+) -> Result<(), JournalFailure> {
+    let id = decode_activation_id(fields[1], fields[2], fields[3])?;
+    let began_at_unix_ms = parse_u64(fields[4], "begin timestamp")?;
+    let committed_at_unix_ms = parse_u64(fields[5], "commit timestamp")?;
+    if committed_at_unix_ms < began_at_unix_ms {
+        return Err(failure("committed activation timestamp regressed"));
+    }
+    let evidence = decode_text(fields[6], "activation evidence")?;
+    if evidence.trim().is_empty() {
+        return Err(failure("committed activation evidence is blank"));
+    }
+
+    let pending = pending_begin(states, &id)?;
+    if pending != began_at_unix_ms {
+        return Err(failure("activation begin timestamp changed before commit"));
+    }
+    states.insert(
+        id,
+        ActivationState::Committed {
+            began_at_unix_ms,
+            committed_at_unix_ms,
+            evidence,
+        },
+    );
+    Ok(())
 }
 
 fn decode_activation_id(
@@ -322,13 +333,15 @@ struct ExclusivePathLock {
 impl ExclusivePathLock {
     fn acquire(journal_path: &Path) -> Result<Self, JournalFailure> {
         let path = lock_path(journal_path);
-        fs::create_dir(&path).map_err(|error| {
-            if error.kind() == std::io::ErrorKind::AlreadyExists {
-                failure("activation journal is already locked or requires crash reconciliation")
-            } else {
-                io_failure("acquire activation journal lock", &error)
+        match fs::create_dir(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(failure(
+                    "activation journal is locked or requires crash reconciliation",
+                ));
             }
-        })?;
+            Err(error) => return Err(io_failure("acquire activation journal lock", &error)),
+        }
         secure_lock_permissions(&path)?;
         sync_parent_directory(&path)?;
         Ok(Self { path })
@@ -343,9 +356,9 @@ impl Drop for ExclusivePathLock {
 }
 
 fn lock_path(journal_path: &Path) -> PathBuf {
-    let mut name = OsString::from(journal_path.as_os_str());
-    name.push(".lock");
-    PathBuf::from(name)
+    let mut value = OsString::from(journal_path.as_os_str());
+    value.push(".lock");
+    PathBuf::from(value)
 }
 
 fn reject_symlink(path: &Path) -> Result<(), JournalFailure> {
@@ -372,7 +385,7 @@ fn set_owner_only_create_mode(_options: &mut OpenOptions) {}
 fn secure_lock_permissions(path: &Path) -> Result<(), JournalFailure> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-        .map_err(|error| io_failure("secure activation journal lock permissions", &error))
+        .map_err(|error| io_failure("secure activation journal lock", &error))
 }
 
 #[cfg(not(unix))]
@@ -463,24 +476,25 @@ mod tests {
         let _ignored = fs::remove_dir(lock_path(path));
     }
 
+    fn open_test(path: &Path) -> FileActivationJournal {
+        match FileActivationJournal::open(path) {
+            Ok(value) => value,
+            Err(error) => unreachable!("open journal: {error:?}"),
+        }
+    }
+
     #[test]
     fn committed_state_survives_reopen() {
         let path = test_path("committed");
         cleanup(&path);
         let id = activation_id();
         {
-            let mut journal = match FileActivationJournal::open(&path) {
-                Ok(value) => value,
-                Err(error) => unreachable!("open journal: {error}"),
-            };
+            let mut journal = open_test(&path);
             assert!(journal.begin(id.clone(), 1_000).is_ok());
             assert!(journal.commit(&id, 1_100, "adapter:receipt:1").is_ok());
         }
 
-        let journal = match FileActivationJournal::open(&path) {
-            Ok(value) => value,
-            Err(error) => unreachable!("reopen journal: {error}"),
-        };
+        let journal = open_test(&path);
         assert!(matches!(
             journal.state(&id),
             Ok(Some(ActivationState::Committed {
@@ -498,17 +512,11 @@ mod tests {
         cleanup(&path);
         let id = activation_id();
         {
-            let mut journal = match FileActivationJournal::open(&path) {
-                Ok(value) => value,
-                Err(error) => unreachable!("open journal: {error}"),
-            };
+            let mut journal = open_test(&path);
             assert!(journal.begin(id.clone(), 1_000).is_ok());
         }
 
-        let journal = match FileActivationJournal::open(&path) {
-            Ok(value) => value,
-            Err(error) => unreachable!("reopen journal: {error}"),
-        };
+        let journal = open_test(&path);
         assert_eq!(
             journal.state(&id),
             Ok(Some(ActivationState::Pending {
@@ -523,10 +531,7 @@ mod tests {
     fn concurrent_open_is_rejected() {
         let path = test_path("lock");
         cleanup(&path);
-        let first = match FileActivationJournal::open(&path) {
-            Ok(value) => value,
-            Err(error) => unreachable!("open journal: {error}"),
-        };
+        let first = open_test(&path);
         assert!(FileActivationJournal::open(&path).is_err());
         drop(first);
         let second = FileActivationJournal::open(&path);

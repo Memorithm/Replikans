@@ -1,0 +1,15 @@
+[package]
+name = "replikan-local-executor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+replikan-execution-lease = { path = "../replikan-execution-lease" }
+replikan-opportunities = { path = "../replikan-opportunities" }
+replikan-resource = { path = "../replikan-resource" }
+
+[lints]
+workspace = true

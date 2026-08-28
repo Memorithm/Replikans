@@ -21,6 +21,8 @@ members = [
     "crates/replikan-control",
     "crates/replikan-cycle",
     "crates/replikan-execution-lease",
+    "crates/replikan-local-executor",
+    "crates/replikan-activation-journal-file",
     "crates/replikan-orchestrator",
     "crates/replikan-cli",
 ]

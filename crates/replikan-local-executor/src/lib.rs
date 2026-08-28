@@ -247,12 +247,13 @@ impl<'a> LocalExecutionRegistry<'a> {
             lease_valid_until_unix_ms: lease.valid_until_unix_ms,
             requested_at_unix_ms: now_unix_ms,
         };
-        let activation = adapter.activate(&request).map_err(|failure| {
-            ExecutorError::AdapterFailed {
-                adapter_id: adapter.descriptor().id.clone(),
-                reason: failure.as_str().to_owned(),
-            }
-        })?;
+        let activation =
+            adapter
+                .activate(&request)
+                .map_err(|failure| ExecutorError::AdapterFailed {
+                    adapter_id: adapter.descriptor().id.clone(),
+                    reason: failure.as_str().to_owned(),
+                })?;
 
         self.consumed_leases.insert(lease_key);
         Ok(ExecutionReceipt {
@@ -509,8 +510,7 @@ mod tests {
 
     #[test]
     fn adapter_failure_does_not_consume_lease() {
-        let adapter =
-            FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
+        let adapter = FakeAdapter::failing(descriptor("asic-adapter", "asic-0", "BTC", "sha256d"));
         let mut registry = match LocalExecutionRegistry::new(vec![&adapter]) {
             Ok(value) => value,
             Err(error) => unreachable!("valid registry: {error}"),

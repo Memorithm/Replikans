@@ -1,0 +1,206 @@
+schema_version: 1
+kind: replikans_ecosystem_agent_roadmap
+status: active
+last_updated: "2026-08-31"
+repository: Memorithm/Replikans
+intended_consumer: autonomous_coding_agent
+merge_policy: never_merge_this_file_to_default_branch_unless_user_explicitly_requests
+
+mission:
+  primary: >-
+    Evolve Replikans as a Rust-first autonomous economic-agent system whose
+    survival and replication decisions are grounded in realized economic fitness,
+    solvency, explicit risk, and replication cost, with deterministic policy
+    boundaries separating strategy, custody, authorization, and execution.
+  ecosystem_goal: >-
+    Reuse Memorithm infrastructure for agent reasoning, adaptive resources,
+    verification, orchestration, and portable execution without allowing those
+    integrations to bypass financial policy or custody boundaries.
+
+verified_current_facts:
+  - repository_rules_explicitly_forbid_hard_coded_private_keys_seed_phrases_reward_wallets_and_treasury_destinations
+  - no_replication_is_allowed_without_demonstrated_economic_fitness
+  - financial_actions_are_proposed_by_agents_but_enforced_by_deterministic_Rust_policy
+  - strategy_custody_and_execution_are_separate_trust_domains
+  - realized_PnL_and_survival_reserves_take_precedence_over_nominal_revenue_or_hashrate
+  - workspace_contains_separate_core_economics_wallet_survival_replication_ledger_opportunity_market_mining_resource_control_cycle_execution_lease_orchestrator_and_CLI_crates
+  - replikan_wallet_Signer_exposes_public_identity_and_signing_requests_but_intentionally_has_no_private_key_or_seed_export_API
+  - workspace_forbids_unsafe_code_and_denies_unwrap_expect_and_panic_through_workspace_lints
+
+invariants:
+  - never_hard_code_private_keys_seed_phrases_reward_wallets_or_treasury_destinations
+  - no_agent_model_or_strategy_module_may_read_export_or_log_secret_key_material
+  - signing_is_a_capability_boundary_not_a_key_export_boundary
+  - strategy_may_propose_but_deterministic_policy_must_authorize_financial_actions
+  - custody_authorization_and_execution_remain_separate_trust_domains
+  - replication_requires_measured_post_cost_economic_fitness_not_nominal_revenue
+  - solvency_survival_reserve_and_declared_risk_limits_dominate_growth_objectives
+  - stale_or_unverifiable_market_data_fails_closed_for_actions_that_require_current_data
+  - realized_results_and_execution_receipts_are_authoritative_over_agent_predictions
+  - no_duplicate_or_replayed_execution_lease_may_cause_a_second_financial_action
+  - required_CI_must_be_green_on_exact_PR_head_before_merge
+
+wallet_audit_rule:
+  status: mandatory
+  instruction: >-
+    At every session that touches wallet, payout, mining destination, treasury,
+    exchange withdrawal, or signing configuration, search the changed scope for
+    embedded destination addresses and secret material. If any production
+    hard-coded wallet destination or secret is found, stop financial-path work,
+    report it explicitly to the user, and replace it only through a reviewed
+    configuration or capability boundary. Test fixtures must be unmistakably
+    test-only and unable to become production defaults.
+
+ownership:
+  role: autonomous_economic_survival_and_replication_runtime
+  owns:
+    - economic_fitness_solvency_survival_reserve_and_replication_policy
+    - opportunity_and_market_evaluation_specific_to_Replikans
+    - custody_capability_interfaces_and_financial_authorization_policy
+    - execution_leases_and_financial_action_idempotency
+    - Replikans_specific_control_cycle_and_orchestration
+    - realized_PnL_ledger_and_replication_evidence
+  does_not_own:
+    - SoulSystem_general_agent_or_coding_harness_semantics
+    - ElasticXxx_generic_adaptive_resource_runtime_semantics
+    - SciRust_Hub_global_ecosystem_control_plane
+    - SciRust_Verify_general_evidence_dossier_or_verdict_semantics
+    - SciCapsule_portable_container_trust_semantics
+    - SciRust_general_scientific_or_numerical_primitive_ownership
+
+control_loop:
+  - OBSERVE_MARKETS_NETWORK_RESOURCES_AND_LEDGER
+  - VALIDATE_DATA_FRESHNESS_AND_SOURCE_IDENTITY
+  - ESTIMATE_REALIZABLE_REVENUE_COST_RISK_AND_SURVIVAL_IMPACT
+  - PROPOSE_ACTION
+  - APPLY_DETERMINISTIC_POLICY_AND_AUTHORIZATION
+  - ACQUIRE_IDEMPOTENT_EXECUTION_LEASE
+  - SIGN_THROUGH_CUSTODY_CAPABILITY_IF_REQUIRED
+  - EXECUTE_THROUGH_BOUNDED_ADAPTER
+  - RECORD_RECEIPT_FEES_AND_REALIZED_PNL
+  - UPDATE_SOLVENCY_AND_SURVIVAL_STATE
+  - CONSIDER_REPLICATION_ONLY_AFTER_POST_COST_FITNESS_GATE
+
+ecosystem_interfaces:
+  Memorithm/SoulSystem:
+    relationship: optional_agent_reasoning_planning_and_tool_runtime
+    status: planned_not_assumed
+    contract:
+      - SoulSystem_may_generate_hypotheses_or_plans
+      - Replikans_deterministic_financial_policy_remains_authoritative
+      - LLM_output_never_directly_authorizes_signing_or_fund_movement
+  Memorithm/ElasticXxx:
+    relationship: adaptive_compute_memory_concurrency_and_execution_resource_partner
+    status: planned
+    contract:
+      - resource_adaptation_must_preserve_solvency_execution_and_custody_invariants
+      - resource_savings_are_not_counted_as_realized_profit_until_measured
+  Memorithm/SciRust-Verify:
+    relationship: evidence_and_provenance_partner
+    status: planned
+    contract:
+      - ingest_market_snapshot_plan_policy_decision_execution_receipt_fee_and_realized_PnL_evidence
+      - keep_financial_policy_decision_distinct_from_Verify_verdict_semantics
+  Memorithm/scirust-hub:
+    relationship: optional_outer_orchestration_and_artifact_control_plane
+    status: planned_not_assumed
+    restriction: Hub_must_not_hold_or_materialize_private_key_material_as_ordinary_artifacts
+  Memorithm/SciCapsule:
+    relationship: optional_portable_strategy_or_worker_packaging
+    status: planned_not_assumed
+    restriction: capsules_must_never_embed_private_keys_seed_phrases_or_implicit_treasury_destinations
+  Memorithm/scirust:
+    relationship: reusable_statistics_optimization_forecasting_and_simulation_provider
+    status: planned_selective
+
+roadmap:
+  - id: REP0
+    name: Trust-boundary and hard-coded wallet audit
+    status: active
+    goals:
+      - audit_every_wallet_signer_destination_treasury_mining_and_withdrawal_surface
+      - prove_production_paths_receive_destinations_from_explicit_configuration_or_authorized_policy
+      - classify_test_addresses_and_make_them_impossible_as_implicit_production_defaults
+      - preserve_no_secret_export_Signer_contract
+  - id: REP1
+    name: Deterministic economic fitness ledger
+    status: active
+    goals:
+      - unify_revenue_fees_energy_compute_network_custody_and_replication_cost_accounting
+      - distinguish_realized_unrealized_and_projected_values
+      - make_survival_reserve_and_solvency_state_replayable_from_authoritative_entries
+      - reject_nonfinite_or_unit_ambiguous_values
+  - id: REP2
+    name: Financial action authorization envelope
+    status: active_priority
+    goals:
+      - version_plan_policy_input_market_snapshot_risk_budget_destination_and_expected_cost
+      - require_explicit_policy_verdict_before_execution
+      - bind_signing_request_domain_and_payload_to_the_authorized_action
+      - reject_destination_payload_or_fee_drift_after_authorization
+  - id: REP3
+    name: Idempotent execution and receipt verification
+    status: active
+    goals:
+      - harden_execution_leases_against_duplicate_retry_and_crash_replay
+      - distinguish_submitted_confirmed_failed_replaced_and_unknown_outcomes
+      - reconcile_external_receipts_before_retrying_ambiguous_actions
+      - record_actual_fees_and_realized_results
+  - id: REP4
+    name: Evidence-backed opportunity adapters
+    status: active
+    goals:
+      - market_and_network_feed_freshness_provenance_and_failure_semantics
+      - mining_and_other_opportunity_profitability_after_all_observable_costs
+      - simulation_or_dry_run_before_enabling_new_financial_execution_adapters
+      - no_strategy_promotion_from_backtest_or_nominal_revenue_alone
+  - id: REP5
+    name: Survival and replication gate
+    status: active
+    goals:
+      - define_post_cost_replication_budget_and_minimum_reserve
+      - require_sustained_realized_fitness_over_a_declared_window
+      - include_failure_recovery_and_new_instance_bootstrap_cost
+      - prevent_replication_when_source_instance_solvency_would_be_endangered
+  - id: REP6
+    name: Agent and Elastic integration
+    status: planned_after_REP2_REP3
+    goals:
+      - use_SoulSystem_only_for_bounded_strategy_proposal_or_analysis
+      - use_ElasticXxx_for_compute_resource_adaptation_under_financial_and_security_invariants
+      - keep_authorization_signing_and_execution_outside_LLM_control
+  - id: REP7
+    name: Verification and orchestration integration
+    status: planned
+    goals:
+      - emit_machine_readable_decision_and_realized_outcome_evidence_for_SciRust_Verify
+      - register_non_custodial_capabilities_with_Hub_if_a_safe_contract_is_justified
+      - never_put_secret_custody_material_in_Hub_artifacts
+  - id: REP8
+    name: Stable autonomous economic productization
+    status: long_term
+    goals:
+      - explicit_supported_network_exchange_and_mining_adapter_matrix
+      - semver_MSRV_and_state_migration_policy
+      - disaster_recovery_and_key_rotation_without_key_export
+      - reproducible_simulation_and_paper_trading_acceptance_before_new_live_adapters
+      - no_profitability_claim_without_time_bounded_realized_evidence
+
+agent_operating_protocol:
+  must_read_this_file:
+    - at_start_of_every_agent_session
+    - before_wallet_signing_destination_treasury_or_execution_changes
+    - before_replication_policy_or_live_financial_adapter_changes
+    - before_cross_repository_agent_or_resource_integration
+    - before_PR_or_merge_decisions
+  must_update_this_file:
+    - when_wallet_or_custody_boundary_changes
+    - when_a_live_execution_adapter_is_enabled_disabled_or_rejected
+    - when_economic_fitness_or_replication_policy_changes
+    - when_an_ecosystem_contract_changes
+    - when_a_roadmap_phase_changes_status
+  fail_closed: >-
+    If this roadmap cannot be read, do not make major custody, signing,
+    financial-execution, replication-policy, cross-repository integration, or
+    merge decisions. Read-only diagnosis and hard-coded-wallet auditing are
+    allowed.

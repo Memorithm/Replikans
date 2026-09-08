@@ -1,0 +1,74 @@
+name: Temporary PR25 exact fix
+
+on:
+  push:
+    branches:
+      - feat/durable-scirust-paper-trading
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: feat/durable-scirust-paper-trading
+      - name: Apply deterministic fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          lib = Path('crates/replikan-trading/src/lib.rs')
+          text = lib.read_text()
+          old = text
+          text = text.replace(
+              '        value: Observation,\n',
+              '        value: Box<Observation>,\n',
+              1,
+          )
+          text = text.replace(
+              '                if outcome != ApplyOutcomeV2::DuplicateFill {\n                    if let ExecutionEventKindV2::Fill {',
+              '                if outcome != ApplyOutcomeV2::DuplicateFill\n                    && let ExecutionEventKindV2::Fill {',
+              1,
+          )
+          text = text.replace(
+              '                        )?;\n                    }\n                }\n            }\n        }',
+              '                        )?;\n                }\n            }\n        }',
+              1,
+          )
+          text = text.replace(
+              '                    value,\n                },',
+              '                    value: Box::new(value),\n                },',
+              1,
+          )
+          if text == old:
+              raise SystemExit('lib.rs replacement made no change')
+          if text.count('value: Box<Observation>,') != 1:
+              raise SystemExit('unexpected boxed observation field count')
+          if 'if outcome != ApplyOutcomeV2::DuplicateFill {' in text:
+              raise SystemExit('nested clippy form remains')
+          if text.count('value: Box::new(value),') != 1:
+              raise SystemExit('observation construction was not boxed exactly once')
+          lib.write_text(text)
+
+          cargo = Path('crates/replikan-trading/Cargo.toml')
+          ctext = cargo.read_text()
+          old_rev = 'e8503de71a4c3f8ff29b5f9ff9a264158edd7ec3'
+          new_rev = '8f597e2edbe281b01cfa30a99b1a25d57c32fb70'
+          if ctext.count(old_rev) != 1:
+              raise SystemExit('unexpected SciRust revision occurrence count')
+          cargo.write_text(ctext.replace(old_rev, new_rev))
+      - name: Format
+        run: cargo fmt --all
+      - name: Remove temporary workflow
+        run: rm .github/workflows/tmp-autofix-pr25.yml
+      - name: Commit exact fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add crates/replikan-trading/src/lib.rs crates/replikan-trading/Cargo.toml .github/workflows/tmp-autofix-pr25.yml
+          git commit -m "fix(trading): satisfy clippy and pin merged SciRust"
+          git push origin HEAD:feat/durable-scirust-paper-trading

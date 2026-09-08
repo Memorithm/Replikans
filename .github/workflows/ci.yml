@@ -36,3 +36,9 @@ jobs:
 
       - name: Cargo test
         run: cargo test --workspace
+
+      - name: Trading paper agent acceptance
+        run: |
+          cargo build -p replikan-trading --bin replikan-trading
+          python3 scripts/trading-paper-demo.py target/debug/replikan-trading
+

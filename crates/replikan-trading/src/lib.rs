@@ -145,7 +145,7 @@ enum Record {
     },
     Observation {
         client_order_id: String,
-        value: Observation,
+        value: Box<Observation>,
     },
 }
 
@@ -260,37 +260,36 @@ impl State {
                 };
                 let outcome = domain(self.book.apply_event(event))?;
                 self.observations.insert(receipt_identity);
-                if outcome != ApplyOutcomeV2::DuplicateFill {
-                    if let ExecutionEventKindV2::Fill {
+                if outcome != ApplyOutcomeV2::DuplicateFill
+                    && let ExecutionEventKindV2::Fill {
                         price,
                         quantity,
                         fee_asset,
                         fee_amount,
                         ..
                     } = &value.kind
-                    {
-                        let intent = self
-                            .intents
-                            .get(client_order_id)
-                            .ok_or_else(|| Error("missing intent".into()))?;
-                        let rules = config
-                            .instruments
-                            .get(&intent.request.instrument_id)
-                            .ok_or_else(|| Error("missing instrument".into()))?;
-                        let notional = SignedAmount::from(price.checked_notional(*quantity)?);
-                        let quantity = SignedAmount::from(*quantity);
-                        let (base, quote) = match intent.request.side {
-                            Side::Buy => (quantity, SignedAmount::ZERO.checked_sub(notional)?),
-                            Side::Sell => (SignedAmount::ZERO.checked_sub(quantity)?, notional),
-                        };
-                        balance_change(&mut self.balances, &rules.base_asset, base)?;
-                        balance_change(&mut self.balances, &rules.quote_asset, quote)?;
-                        balance_change(
-                            &mut self.balances,
-                            fee_asset,
-                            SignedAmount::ZERO.checked_sub(*fee_amount)?,
-                        )?;
-                    }
+                {
+                    let intent = self
+                        .intents
+                        .get(client_order_id)
+                        .ok_or_else(|| Error("missing intent".into()))?;
+                    let rules = config
+                        .instruments
+                        .get(&intent.request.instrument_id)
+                        .ok_or_else(|| Error("missing instrument".into()))?;
+                    let notional = SignedAmount::from(price.checked_notional(*quantity)?);
+                    let quantity = SignedAmount::from(*quantity);
+                    let (base, quote) = match intent.request.side {
+                        Side::Buy => (quantity, SignedAmount::ZERO.checked_sub(notional)?),
+                        Side::Sell => (SignedAmount::ZERO.checked_sub(quantity)?, notional),
+                    };
+                    balance_change(&mut self.balances, &rules.base_asset, base)?;
+                    balance_change(&mut self.balances, &rules.quote_asset, quote)?;
+                    balance_change(
+                        &mut self.balances,
+                        fee_asset,
+                        SignedAmount::ZERO.checked_sub(*fee_amount)?,
+                    )?;
                 }
             }
         }
@@ -644,7 +643,7 @@ impl Runtime {
                 &self.config,
                 Record::Observation {
                     client_order_id: id.to_owned(),
-                    value,
+                    value: Box::new(value),
                 },
             )?;
         }

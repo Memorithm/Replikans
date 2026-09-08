@@ -23,7 +23,9 @@ paper configuration is supplied by the operator, never by agent commands.
 
 Requires Rust 1.89 or newer for the SciRust dependency; other Replikans crates
 retain their existing MSRV declaration. SciRust remains a pinned Git dependency,
-with its own license; no SciRust source is copied or relicensed as MIT.
+with its own license; no SciRust source is copied or relicensed as MIT. The
+paper-runtime qualification currently pins merged SciRust commit
+`8f597e2edbe281b01cfa30a99b1a25d57c32fb70` (PR #1387 exact-notional contract).
 
 ```bash
 cargo test -p replikan-trading

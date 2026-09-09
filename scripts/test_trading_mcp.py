@@ -74,7 +74,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(response["result"]["protocolVersion"], mcp.PROTOCOL)
         self.assertEqual(self.server.handle(request("tools/list"))["error"]["code"], -32002)
         self.server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"})
-        self.assertEqual(len(self.server.handle(request("tools/list"))["result"]["tools"]), 9)
+        self.assertEqual(len(self.server.handle(request("tools/list"))["result"]["tools"]), 10)
         self.assertEqual(self.server.handle(request("initialize"))["error"]["code"], -32602)
 
     def test_notifications_cannot_execute_and_have_no_response(self):
@@ -232,6 +232,16 @@ class RustAcceptance(unittest.TestCase):
             bad = copy.deepcopy(buy)
             bad["request"]["quantity"] = "100"
             self.assertTrue(session([("order_prepare", {"intent": bad})])[0]["isError"])
+            abandoned = copy.deepcopy(buy)
+            for key in ("intent_id", "idempotency_key", "client_order_id", "decision_id"):
+                abandoned[key] = abandoned[key].replace("buy", "abandoned")
+            results = session([("order_prepare", {"intent": abandoned}),
+                               ("order_abandon", {"client_order_id": "abandoned", "reason": "strategy changed"}),
+                               ("order_get", {"client_order_id": "abandoned"}),
+                               ("order_abandon", {"client_order_id": "buy", "reason": "cannot undo"})])
+            self.assertFalse(results[1]["isError"])
+            self.assertEqual(results[2]["structuredContent"]["order"]["status"], "Rejected")
+            self.assertTrue(results[3]["isError"])
 
 
 if __name__ == "__main__":

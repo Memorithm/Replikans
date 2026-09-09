@@ -57,12 +57,24 @@ the executable demo for every required field. `dispatch`, `cancel` and
 `reconcile` take `client_order_id`. No command accepts a receipt or changes the
 operator configuration. Outputs have `{ok,result}` or `{ok:false,error}`.
 
+`abandon` takes `client_order_id` and a nonempty `reason`. It durably releases
+reservations for an intent that has NEVER had a dispatch claim, including one
+that expired before submission. It records a local rejection, not a venue
+cancellation. Claimed/ambiguous orders must be reconciled, never abandoned.
+The original identifiers remain consumed. Repeated abandonment is rejected.
+Journals containing this additive event require a runtime supporting `Abandon`;
+older binaries fail to replay rather than silently discard the new event.
+
 ## Recovery contract
 
 A claim committed before a crash may or may not have reached the venue. It is
 never automatically submitted again. Query its stable identity. `None`, timeout
 or contradictory evidence leaves the operation unresolved. Losing the journal
 and creating a new empty database is not recovery and cannot preserve dedup.
+
+Reconciliation returns an error if receipts were persisted but the order still
+requires recovery. Inspect the snapshot for the retained state; success is not
+reported merely because an adapter query returned some observations.
 
 Transactions replay current database state before changing it, so a second
 connection cannot submit using a stale local projection. An aborted receipt

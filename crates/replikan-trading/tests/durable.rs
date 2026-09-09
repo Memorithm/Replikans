@@ -302,6 +302,62 @@ fn reservations_expiry_and_sell_inventory_are_enforced() -> TestResult {
 }
 
 #[test]
+fn abandoned_expired_intent_releases_reserves_durably_without_reusing_identity() -> TestResult {
+    let directory = TempDir::new()?;
+    let (mut runtime, mut venue) = open(directory.path())?;
+    let mut order = intent("expired", Side::Buy, "100")?;
+    order.request.quantity = Quantity::parse("9")?;
+    runtime.prepare(order, 1000)?;
+    assert!(runtime.prepare(intent("next", Side::Buy, "100")?, 1000).is_err());
+    assert!(runtime.abandon("expired", "", 1001).is_err());
+    assert!(runtime.abandon("expired", "stale", 999).is_err());
+    runtime.abandon("expired", "expired before dispatch", 2001)?;
+    assert!(runtime.abandon("expired", "expired before dispatch", 2001).is_err());
+    assert!(runtime.dispatch("expired", &mut venue, 1000).is_err());
+    drop(runtime);
+    let (mut runtime, _) = open(directory.path())?;
+    let snapshot = runtime.snapshot()?;
+    assert_eq!(snapshot.orders[0].status, ExecutionStatusV2::Rejected);
+    assert!(snapshot.fills.is_empty());
+    runtime.prepare(intent("next", Side::Buy, "100")?, 1000)?;
+    runtime.dispatch("next", &mut venue, 1000)?;
+    assert!(runtime.abandon("next", "cannot undo sent order", 1001).is_err());
+    Ok(())
+}
+
+#[test]
+fn ambiguous_submission_cannot_be_abandoned() -> TestResult {
+    let directory = TempDir::new()?;
+    let (mut runtime, venue) = open(directory.path())?;
+    let mut venue = LoseReply(venue);
+    runtime.prepare(intent("unknown", Side::Buy, "100")?, 1000)?;
+    assert!(runtime.dispatch("unknown", &mut venue, 1000).is_err());
+    assert!(runtime.abandon("unknown", "response lost", 1001).is_err());
+    runtime.reconcile("unknown", &mut venue, 1001)?;
+    assert_eq!(runtime.snapshot()?.fills.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn reconciliation_does_not_report_success_for_unresolved_order() -> TestResult {
+    let directory = TempDir::new()?;
+    let (mut runtime, mut venue) = open(directory.path())?;
+    runtime.prepare(intent("buy", Side::Buy, "100")?, 1000)?;
+    runtime.dispatch("buy", &mut venue, 1000)?;
+    runtime.record_observations("buy", vec![Observation {
+        native_sequence: None,
+        received_at_ms: 1001,
+        kind: ExecutionEventKindV2::SubmitRejected { reason: "contradictory fixture".into() },
+    }])?;
+    assert!(runtime.reconcile("buy", &mut venue, 1002).is_err());
+    let snapshot = runtime.snapshot()?;
+    assert_eq!(snapshot.orders[0].status, ExecutionStatusV2::ReconciliationRequired);
+    assert_eq!(snapshot.fills.len(), 1);
+    assert_eq!(snapshot.balances["QUOTE"].as_decimal_string(), "899");
+    Ok(())
+}
+
+#[test]
 fn cancel_open_limit_is_durable_and_query_is_idempotent() -> TestResult {
     let directory = TempDir::new()?;
     let (mut runtime, mut venue) = open(directory.path())?;

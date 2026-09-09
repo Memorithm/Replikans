@@ -45,6 +45,7 @@ Only protocol responses go to stdout. The client must send `initialize`, then
 | `capabilities` | Actual runtime mode plus bridge tool inventory |
 | `instrument_rules` | Configured instrument rules, no market-price fabrication |
 | `order_prepare` | Persist full intent/decision and reserve inventory, no send |
+| `order_abandon` | Release a prepared intent only before any dispatch claim |
 | `order_submit` | Dispatch a previously prepared `client_order_id` once |
 | `order_get` | Local state, not an external status query |
 | `order_cancel` | Request venue cancellation, not reversal of fills |

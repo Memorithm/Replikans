@@ -42,3 +42,8 @@ jobs:
           cargo build -p replikan-trading --bin replikan-trading
           python3 scripts/trading-paper-demo.py target/debug/replikan-trading
 
+      - name: MCP protocol and real paper runtime acceptance
+        env:
+          REPLIKAN_TRADING_BINARY: target/debug/replikan-trading
+        run: python3 -m unittest discover -s scripts -p 'test_trading_mcp.py' -v
+

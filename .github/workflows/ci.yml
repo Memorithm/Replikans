@@ -47,3 +47,8 @@ jobs:
           REPLIKAN_TRADING_BINARY: target/debug/replikan-trading
         run: python3 -m unittest discover -s scripts -p 'test_trading_mcp.py' -v
 
+      - name: Local agent and source evidence acceptance
+        env:
+          REPLIKAN_TRADING_BINARY: target/debug/replikan-trading
+        run: python3 -m unittest discover -s scripts -p 'test_trading_agent.py' -v
+

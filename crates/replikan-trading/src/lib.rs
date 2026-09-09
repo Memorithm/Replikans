@@ -218,24 +218,39 @@ impl State {
 
     fn apply(&mut self, record: &Record, config: &Config) -> Result<()> {
         match record {
-            Record::Abandon { client_order_id, reason, recorded_at_ms } => {
-                let intent = self.intents.get(client_order_id)
+            Record::Abandon {
+                client_order_id,
+                reason,
+                recorded_at_ms,
+            } => {
+                let intent = self
+                    .intents
+                    .get(client_order_id)
                     .ok_or_else(|| Error("unknown intent".into()))?;
-                if self.dispatched.contains(client_order_id) || reason.trim().is_empty()
+                if self.dispatched.contains(client_order_id)
+                    || reason.trim().is_empty()
                     || *recorded_at_ms < intent.created_at_ms
-                    || self.book.orders.get(client_order_id)
+                    || self
+                        .book
+                        .orders
+                        .get(client_order_id)
                         .is_none_or(|order| order.status != ExecutionStatusV2::PendingSubmit)
                 {
                     return Err(Error("only an undispatched intent can be abandoned".into()));
                 }
-                self.apply(&Record::Observation {
-                    client_order_id: client_order_id.clone(),
-                    value: Box::new(Observation {
-                        native_sequence: None,
-                        received_at_ms: *recorded_at_ms,
-                        kind: ExecutionEventKindV2::SubmitRejected { reason: format!("local abandonment: {reason}") },
-                    }),
-                }, config)?;
+                self.apply(
+                    &Record::Observation {
+                        client_order_id: client_order_id.clone(),
+                        value: Box::new(Observation {
+                            native_sequence: None,
+                            received_at_ms: *recorded_at_ms,
+                            kind: ExecutionEventKindV2::SubmitRejected {
+                                reason: format!("local abandonment: {reason}"),
+                            },
+                        }),
+                    },
+                    config,
+                )?;
             }
             Record::Intent(intent) => {
                 domain(self.book.register_intent(
@@ -557,12 +572,20 @@ impl Runtime {
     /// Release reservations only when the journal proves no dispatch was claimed.
     /// This is a local terminal decision, never a claim of external cancellation.
     pub fn abandon(&mut self, id: &str, reason: &str, now_ms: i64) -> Result<()> {
-        let transaction = self.connection
+        let transaction = self
+            .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut state = replay(&transaction, &self.config)?;
-        append(&transaction, &mut state, &self.config, Record::Abandon {
-            client_order_id: id.to_owned(), reason: reason.to_owned(), recorded_at_ms: now_ms,
-        })?;
+        append(
+            &transaction,
+            &mut state,
+            &self.config,
+            Record::Abandon {
+                client_order_id: id.to_owned(),
+                reason: reason.to_owned(),
+                recorded_at_ms: now_ms,
+            },
+        )?;
         transaction.commit()?;
         Ok(())
     }
@@ -632,8 +655,14 @@ impl Runtime {
         })?;
         self.record_observations(id, observations)?;
         let snapshot = self.snapshot()?;
-        if snapshot.recovery_required.iter().any(|pending| pending == id) {
-            return Err(Error("receipts recorded, but reconciliation remains unresolved".into()));
+        if snapshot
+            .recovery_required
+            .iter()
+            .any(|pending| pending == id)
+        {
+            return Err(Error(
+                "receipts recorded, but reconciliation remains unresolved".into(),
+            ));
         }
         Ok(())
     }

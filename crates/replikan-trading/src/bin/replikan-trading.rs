@@ -8,10 +8,22 @@ use std::io::{BufRead, Write};
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Command {
     Capabilities,
-    Prepare { intent: Box<Intent> },
-    Dispatch { client_order_id: String },
-    Reconcile { client_order_id: String },
-    Cancel { client_order_id: String },
+    Prepare {
+        intent: Box<Intent>,
+    },
+    Abandon {
+        client_order_id: String,
+        reason: String,
+    },
+    Dispatch {
+        client_order_id: String,
+    },
+    Reconcile {
+        client_order_id: String,
+    },
+    Cancel {
+        client_order_id: String,
+    },
     Snapshot,
     Export,
 }
@@ -28,13 +40,20 @@ fn execute(runtime: &mut Runtime, venue: &mut PaperVenue, command: Command) -> R
     match command {
         Command::Capabilities => Ok(
             json!({"schema_version":1,"mode":"paper","protocol":"json-lines",
-            "operations":["capabilities","prepare","dispatch","reconcile","cancel","snapshot","export"],
+            "operations":["capabilities","prepare","abandon","dispatch","reconcile","cancel","snapshot","export"],
             "order_types":["Market","Limit"],"time_in_force":["Gtc"],"live":false,"amend":false,
             "fill_model":"snapshot-only, full marketable fills, flat configured quote fee"}),
         ),
         Command::Prepare { intent } => {
             runtime.prepare(*intent, now)?;
             Ok(json!({"prepared":true}))
+        }
+        Command::Abandon {
+            client_order_id,
+            reason,
+        } => {
+            runtime.abandon(&client_order_id, &reason, now)?;
+            Ok(json!({"abandoned":true}))
         }
         Command::Dispatch { client_order_id } => {
             runtime.dispatch(&client_order_id, venue, now)?;

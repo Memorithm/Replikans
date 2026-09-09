@@ -59,6 +59,8 @@ TOOLS = [
          obj({"instrument_id": TEXT}), True),
     tool("order_prepare", "Persist a complete decision and reserve balances; does not submit.",
          obj({"intent": INTENT}), idempotent=True),
+    tool("order_abandon", "Release a prepared intent only if no dispatch was ever claimed. Not external cancellation.",
+         obj({"client_order_id": TEXT, "reason": TEXT})),
     tool("order_submit", "Dispatch a previously prepared client_order_id ONCE. On uncertainty query/reconcile; never resubmit.", ID),
     tool("order_cancel", "Request cancellation; inspect resulting order state. Not an undo of fills.", ID),
     tool("order_get", "Read local order state; does not query venue. Use execution_reconcile for venue receipts.", ID, True),
@@ -265,6 +267,7 @@ class Server:
 
     def invoke(self, name, arguments):
         operations = {"capabilities": "capabilities", "order_prepare": "prepare",
+                      "order_abandon": "abandon",
                       "order_submit": "dispatch", "order_cancel": "cancel",
                       "execution_reconcile": "reconcile", "account_snapshot": "snapshot",
                       "session_export": "export", "instrument_rules": "export", "order_get": "snapshot"}

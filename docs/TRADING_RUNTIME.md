@@ -85,8 +85,9 @@ internal corruption, not a rewrite by someone controlling the complete database.
   affordable order after a partial fill; no optimistic reserve release.
 - Balances and fills are exact; FIFO cost basis, realized/unrealized PnL and
   operating-cost ingestion are subsequent ledger capabilities.
-- JSON-lines is not advertised as MCP. MCP schemas/bridge, model client and
-  context collection remain subsequent work.
+- The Rust binary retains its JSON-lines protocol. An optional strict MCP stdio
+  bridge is documented in [TRADING_MCP.md](TRADING_MCP.md); it delegates financial
+  actions to this binary. Model client and context collection remain future work.
 - Replay is O(journal size), capped at one million records and one MiB per record.
   Checkpoints/compaction require a versioned migration before increasing scale.
 - No comparative performance or profitability claim.

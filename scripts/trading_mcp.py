@@ -199,6 +199,11 @@ def rpc_error(identifier, code, message):
     return {"jsonrpc": "2.0", "id": identifier, "error": {"code": code, "message": message}}
 
 
+def outcome_may_be_unknown(error):
+    """Return whether a backend failure explicitly reports an ambiguous effect."""
+    return "outcome may be unknown" in str(error).lower()
+
+
 class Server:
     def __init__(self, backend):
         self.backend = backend
@@ -257,7 +262,15 @@ class Server:
                     value = self.invoke(name, arguments)
                     result = {"content": [{"type": "text", "text": json.dumps(value, allow_nan=False)}],
                               "structuredContent": value, "isError": False}
-                except (Invalid, BackendError) as error:
+                except Invalid as error:
+                    result = {"content": [{"type": "text", "text": str(error)}], "isError": True}
+                except BackendError as error:
+                    if (outcome_may_be_unknown(error)
+                            and not BY_NAME[name]["annotations"]["readOnlyHint"]):
+                        # A JSON-RPC failure prevents the agent from journaling a resolving
+                        # tool_response. The preceding tool_requested therefore remains in
+                        # recovery state and cannot be silently replayed.
+                        return rpc_error(identifier, -32003, str(error))
                     result = {"content": [{"type": "text", "text": str(error)}], "isError": True}
             else:
                 return rpc_error(identifier, -32601, "Method not found")

@@ -18,6 +18,7 @@ replikan-mining-market = { path = "../replikan-mining-market" }
 replikan-mining-pipeline = { path = "../replikan-mining-pipeline" }
 replikan-network-feeds = { path = "../replikan-network-feeds" }
 replikan-opportunities = { path = "../replikan-opportunities" }
+replikan-replication = { path = "../replikan-replication" }
 replikan-resource = { path = "../replikan-resource" }
 replikan-survival = { path = "../replikan-survival" }
 

@@ -301,20 +301,24 @@ mod tests {
 
     fn seeded() -> EconomicLedger {
         let mut ledger = EconomicLedger::default();
-        assert!(ledger
-            .append(
-                EntryKind::EarnedRevenue,
-                Money::from_micros(9_000_000),
-                "rev-1",
-            )
-            .is_ok());
-        assert!(ledger
-            .append(
-                EntryKind::CapitalInjection,
-                Money::from_micros(3_000_000),
-                "cap-1",
-            )
-            .is_ok());
+        assert!(
+            ledger
+                .append(
+                    EntryKind::EarnedRevenue,
+                    Money::from_micros(9_000_000),
+                    "rev-1",
+                )
+                .is_ok()
+        );
+        assert!(
+            ledger
+                .append(
+                    EntryKind::CapitalInjection,
+                    Money::from_micros(3_000_000),
+                    "cap-1",
+                )
+                .is_ok()
+        );
         ledger
     }
 
@@ -344,27 +348,33 @@ mod tests {
     #[test]
     fn realized_profit_subtracts_operating_costs() {
         let mut ledger = EconomicLedger::default();
-        assert!(ledger
-            .append(
-                EntryKind::EarnedRevenue,
-                Money::from_micros(25_000_000),
-                "pool-payout-tx-revenue",
-            )
-            .is_ok());
-        assert!(ledger
-            .append(
-                EntryKind::EnergyCost,
-                Money::from_micros(7_000_000),
-                "meter-invoice-energy",
-            )
-            .is_ok());
-        assert!(ledger
-            .append(
-                EntryKind::NetworkFee,
-                Money::from_micros(500_000),
-                "chain-receipt-fee",
-            )
-            .is_ok());
+        assert!(
+            ledger
+                .append(
+                    EntryKind::EarnedRevenue,
+                    Money::from_micros(25_000_000),
+                    "pool-payout-tx-revenue",
+                )
+                .is_ok()
+        );
+        assert!(
+            ledger
+                .append(
+                    EntryKind::EnergyCost,
+                    Money::from_micros(7_000_000),
+                    "meter-invoice-energy",
+                )
+                .is_ok()
+        );
+        assert!(
+            ledger
+                .append(
+                    EntryKind::NetworkFee,
+                    Money::from_micros(500_000),
+                    "chain-receipt-fee",
+                )
+                .is_ok()
+        );
         let snapshot = match ledger.snapshot() {
             Ok(value) => value,
             Err(error) => unreachable!("valid ledger snapshot: {error}"),

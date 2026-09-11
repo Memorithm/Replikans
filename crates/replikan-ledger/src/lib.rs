@@ -301,23 +301,20 @@ mod tests {
 
     fn seeded() -> EconomicLedger {
         let mut ledger = EconomicLedger::default();
-        assert!(
-            ledger
-                .append(
-                    EntryKind::EarnedRevenue,
-                    Money::from_micros(9_000_000),
-                    "rev:1",
-                )
-                .is_ok()
-        );
-        assert!(
-            ledger
-                .append(
-                    EntryKind::CapitalInjection,
-                    Money::from_micros(3_000_000),
-                    "fundn                )
-                .is_ok()
-        );
+        assert!(ledger
+            .append(
+                EntryKind::EarnedRevenue,
+                Money::from_micros(9_000_000),
+                "rev-1",
+            )
+            .is_ok());
+        assert!(ledger
+            .append(
+                EntryKind::CapitalInjection,
+                Money::from_micros(3_000_000),
+                "cap-1",
+            )
+            .is_ok());
         ledger
     }
 
@@ -327,7 +324,7 @@ mod tests {
         let result = ledger.append(
             EntryKind::CapitalInjection,
             Money::from_micros(100_000_000),
-            "creator funding tx:test",
+            "creator-funding-tx-test",
         );
         assert!(result.is_ok());
         let snapshot = match ledger.snapshot() {
@@ -347,33 +344,27 @@ mod tests {
     #[test]
     fn realized_profit_subtracts_operating_costs() {
         let mut ledger = EconomicLedger::default();
-        assert!(
-            ledger
-                .append(
-                    EntryKind::EarnedRevenue,
-                    Money::from_micros(25_000_000),
-                    "pool payout tx:revenue",
-                )
-                .is_ok()
-        );
-        assert!(
-            ledger
-                .append(
-                    EntryKind::EnergyCost,
-                    Money::from_micros(7_000_000),
-                    "meter invoice:energy",
-                )
-                .is_ok()
-        );
-        assert!(
-            ledger
-                .append(
-                    EntryKind::NetworkFee,
-                    Money::from_micros(500_000),
-                    "chain receipt:fee",
-                )
-                .is_ok()
-        );
+        assert!(ledger
+            .append(
+                EntryKind::EarnedRevenue,
+                Money::from_micros(25_000_000),
+                "pool-payout-tx-revenue",
+            )
+            .is_ok());
+        assert!(ledger
+            .append(
+                EntryKind::EnergyCost,
+                Money::from_micros(7_000_000),
+                "meter-invoice-energy",
+            )
+            .is_ok());
+        assert!(ledger
+            .append(
+                EntryKind::NetworkFee,
+                Money::from_micros(500_000),
+                "chain-receipt-fee",
+            )
+            .is_ok());
         let snapshot = match ledger.snapshot() {
             Ok(value) => value,
             Err(error) => unreachable!("valid ledger snapshot: {error}"),
@@ -434,6 +425,7 @@ mod tests {
         };
         assert_eq!(original, decoded);
         assert_eq!(decoded.realized_net_profit(), Money::from_micros(9_000_000));
+        assert_eq!(decoded.external_capital_in, Money::from_micros(3_000_000));
     }
 
     #[test]
@@ -443,9 +435,29 @@ mod tests {
             ledger.append(
                 EntryKind::EarnedRevenue,
                 Money::from_micros(1),
-                "bad|evidence",
+                "ok-evidence",
             ),
+            Ok(0)
+        );
+        assert_eq!(
+            ledger.append(EntryKind::EarnedRevenue, Money::from_micros(1), "bad|pipe"),
             Err(LedgerError::EvidenceNotEncodable)
+        );
+    }
+
+    #[test]
+    fn decode_rejects_unknown_header_and_sequence_gaps() {
+        assert_eq!(
+            EconomicLedger::decode("NOT_A_LEDGER\n").err(),
+            Some(LedgerError::InvalidEncoding)
+        );
+        assert_eq!(
+            EconomicLedger::decode("REPLIKANS_LEDGER_V1\n1|earned_revenue|1|gap\n").err(),
+            Some(LedgerError::SequenceMismatch)
+        );
+        assert_eq!(
+            EconomicLedger::decode("REPLIKANS_LEDGER_V1\n0|not_a_kind|1|x\n").err(),
+            Some(LedgerError::UnknownEntryKind)
         );
     }
 }

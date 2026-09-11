@@ -36,6 +36,28 @@ impl Money {
     }
 
     #[must_use]
+    pub const fn is_zero(self) -> bool {
+        self.micros == 0
+    }
+
+    #[must_use]
+    pub const fn abs(self) -> Option<Self> {
+        match self.micros.checked_abs() {
+            Some(value) => Some(Self { micros: value }),
+            None => None,
+        }
+    }
+
+    /// Convert whole quote-currency units into micros without overflow.
+    #[must_use]
+    pub const fn try_from_units(units: i128) -> Option<Self> {
+        match units.checked_mul(1_000_000) {
+            Some(micros) => Some(Self { micros }),
+            None => None,
+        }
+    }
+
+    #[must_use]
     pub fn checked_add(self, rhs: Self) -> Option<Self> {
         self.micros.checked_add(rhs.micros).map(Self::from_micros)
     }
@@ -44,13 +66,39 @@ impl Money {
     pub fn checked_sub(self, rhs: Self) -> Option<Self> {
         self.micros.checked_sub(rhs.micros).map(Self::from_micros)
     }
+
+    #[must_use]
+    pub fn checked_mul_i128(self, rhs: i128) -> Option<Self> {
+        self.micros.checked_mul(rhs).map(Self::from_micros)
+    }
+
+    /// Scale by basis points using truncating integer division (10_000 bps = 100%).
+    #[must_use]
+    pub fn checked_scale_bps(self, bps: BasisPoints) -> Option<Self> {
+        self.micros
+            .checked_mul(i128::from(bps.value()))
+            .and_then(|scaled| scaled.checked_div(i128::from(BasisPoints::FULL_SCALE)))
+            .map(Self::from_micros)
+    }
 }
 
 impl Add for Money {
     type Output = Self;
 
+    /// Convenience operator for small, already-validated values.
+    /// Financial policy paths must use [`Money::checked_add`].
     fn add(self, rhs: Self) -> Self::Output {
-        Self::from_micros(self.micros + rhs.micros)
+        match self.checked_add(rhs) {
+            Some(value) => value,
+            None => {
+                let micros = if self.micros < 0 || rhs.micros < 0 {
+                    i128::MIN
+                } else {
+                    i128::MAX
+                };
+                Self { micros }
+            }
+        }
     }
 }
 
@@ -58,7 +106,17 @@ impl Sub for Money {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::from_micros(self.micros - rhs.micros)
+        match self.checked_sub(rhs) {
+            Some(value) => value,
+            None => {
+                let micros = if self.micros >= rhs.micros {
+                    i128::MAX
+                } else {
+                    i128::MIN
+                };
+                Self { micros }
+            }
+        }
     }
 }
 
@@ -107,7 +165,7 @@ impl fmt::Display for RatioError {
 impl std::error::Error for RatioError {}
 
 /// Public identifier for a signing identity. It is deliberately not a secret.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PublicIdentity(String);
 
 impl PublicIdentity {
@@ -161,5 +219,41 @@ mod tests {
     #[test]
     fn public_identity_rejects_blank_values() {
         assert_eq!(PublicIdentity::new("   "), Err(IdentityError::Empty));
+    }
+
+    #[test]
+    fn money_checked_arithmetic_rejects_overflow() {
+        let max = Money::from_micros(i128::MAX);
+        assert_eq!(max.checked_add(Money::from_micros(1)), None);
+        assert_eq!(
+            Money::from_micros(i128::MIN).checked_sub(Money::from_micros(1)),
+            None
+        );
+        assert_eq!(Money::from_micros(2).checked_mul_i128(i128::MAX), None);
+        assert_eq!(Money::try_from_units(i128::MAX), None);
+        assert_eq!(
+            Money::try_from_units(2),
+            Some(Money::from_micros(2_000_000))
+        );
+    }
+
+    #[test]
+    fn money_scales_by_basis_points_with_truncation() {
+        let principal = Money::from_micros(1_000_000);
+        let half = match BasisPoints::new(5_000) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid basis points: {error}"),
+        };
+        assert_eq!(
+            principal.checked_scale_bps(half),
+            Some(Money::from_micros(500_000))
+        );
+    }
+
+    #[test]
+    fn money_add_operator_saturates_instead_of_wrapping() {
+        let saturated = Money::from_micros(i128::MAX) + Money::from_micros(1);
+        assert_eq!(saturated.micros(), i128::MAX);
+        assert!(saturated.is_positive());
     }
 }

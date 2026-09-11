@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+path = "src/root.rs"
+
 [dependencies]
 replikan-authorized-bitcoin-planner = { path = "../replikan-authorized-bitcoin-planner" }
 replikan-control = { path = "../replikan-control" }

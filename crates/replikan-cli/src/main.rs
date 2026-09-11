@@ -186,11 +186,16 @@ fn run_demo() -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     let snapshot = ledger.snapshot().map_err(|error| error.to_string())?;
+    let restored = EconomicLedger::decode(&ledger.encode()).map_err(|error| error.to_string())?;
     println!("== ledger snapshot ==");
     println!("realized_net_profit={}", snapshot.realized_net_profit());
     println!(
         "external_capital_does_not_count_as_profit={}",
         snapshot.realized_net_profit() != snapshot.liquid_delta()
+    );
+    println!(
+        "ledger_roundtrip_ok={}",
+        restored.entries() == ledger.entries()
     );
 
     let child = ReplicationCandidate {

@@ -12,6 +12,10 @@ path = "src/main.rs"
 
 [dependencies]
 replikan-core = { path = "../replikan-core" }
+replikan-economics = { path = "../replikan-economics" }
+replikan-ledger = { path = "../replikan-ledger" }
+replikan-replication = { path = "../replikan-replication" }
+replikan-survival = { path = "../replikan-survival" }
 
 [lints]
 workspace = true

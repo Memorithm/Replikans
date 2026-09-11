@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use core::fmt;
+
 use replikan_core::{BasisPoints, Money};
 use replikan_economics::EconomicFitness;
 
@@ -9,6 +11,50 @@ pub struct SurvivalPolicy {
     pub constrained_reserve: Money,
     pub maximum_drawdown: BasisPoints,
 }
+
+impl SurvivalPolicy {
+    pub fn new(
+        critical_reserve: Money,
+        constrained_reserve: Money,
+        maximum_drawdown: BasisPoints,
+    ) -> Result<Self, SurvivalPolicyError> {
+        Self {
+            critical_reserve,
+            constrained_reserve,
+            maximum_drawdown,
+        }
+        .validate()
+    }
+
+    pub fn validate(self) -> Result<Self, SurvivalPolicyError> {
+        if self.critical_reserve.is_negative() || self.constrained_reserve.is_negative() {
+            return Err(SurvivalPolicyError::NegativeReserve);
+        }
+        if self.critical_reserve > self.constrained_reserve {
+            return Err(SurvivalPolicyError::CriticalExceedsConstrained);
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SurvivalPolicyError {
+    NegativeReserve,
+    CriticalExceedsConstrained,
+}
+
+impl fmt::Display for SurvivalPolicyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NegativeReserve => write!(f, "survival reserves cannot be negative"),
+            Self::CriticalExceedsConstrained => {
+                write!(f, "critical reserve cannot exceed constrained reserve")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SurvivalPolicyError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SurvivalState {
@@ -108,6 +154,18 @@ mod tests {
         assert_eq!(
             spending_mode(SurvivalState::Critical),
             SpendingMode::EssentialOnly
+        );
+    }
+
+    #[test]
+    fn policy_rejects_inverted_thresholds() {
+        assert_eq!(
+            SurvivalPolicy::new(
+                Money::from_micros(50_000_000),
+                Money::from_micros(20_000_000),
+                bps(2_000)
+            ),
+            Err(SurvivalPolicyError::CriticalExceedsConstrained)
         );
     }
 

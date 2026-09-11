@@ -115,7 +115,6 @@ impl EconomicLedger {
 
     pub fn snapshot(&self) -> Result<LedgerSnapshot, LedgerError> {
         let mut snapshot = LedgerSnapshot::default();
-
         for entry in &self.entries {
             match entry.kind {
                 EntryKind::EarnedRevenue => {
@@ -149,7 +148,6 @@ impl EconomicLedger {
                 }
             }
         }
-
         Ok(snapshot)
     }
 
@@ -301,6 +299,28 @@ impl std::error::Error for LedgerError {}
 mod tests {
     use super::*;
 
+    fn seeded() -> EconomicLedger {
+        let mut ledger = EconomicLedger::default();
+        assert!(
+            ledger
+                .append(
+                    EntryKind::EarnedRevenue,
+                    Money::from_micros(9_000_000),
+                    "rev:1",
+                )
+                .is_ok()
+        );
+        assert!(
+            ledger
+                .append(
+                    EntryKind::CapitalInjection,
+                    Money::from_micros(3_000_000),
+                    "fundn                )
+                .is_ok()
+        );
+        ledger
+    }
+
     #[test]
     fn external_funding_never_counts_as_earned_profit() {
         let mut ledger = EconomicLedger::default();
@@ -310,7 +330,6 @@ mod tests {
             "creator funding tx:test",
         );
         assert!(result.is_ok());
-
         let snapshot = match ledger.snapshot() {
             Ok(value) => value,
             Err(error) => unreachable!("valid ledger snapshot: {error}"),
@@ -355,7 +374,6 @@ mod tests {
                 )
                 .is_ok()
         );
-
         let snapshot = match ledger.snapshot() {
             Ok(value) => value,
             Err(error) => unreachable!("valid ledger snapshot: {error}"),
@@ -378,7 +396,6 @@ mod tests {
             external_capital_in: Money::from_micros(1),
             external_capital_out: Money::ZERO,
         };
-
         assert_eq!(
             snapshot.checked_liquid_delta(),
             Err(LedgerError::MonetaryOverflow)
@@ -401,24 +418,7 @@ mod tests {
 
     #[test]
     fn encode_decode_preserves_entries_and_profit() {
-        let mut ledger = EconomicLedger::default();
-        assert!(
-            ledger
-                .append(
-                    EntryKind::EarnedRevenue,
-                    Money::from_micros(9_000_000),
-                    "rev:1",
-                )
-                .is_ok()
-        );
-        assert!(
-            ledger
-                .append(
-                    EntryKind::CapitalInjection,
-                    Money::from_micros(3_000_000),
-                    "fundn                )
-                .is_ok()
-        );
+        let ledger = seeded();
         let restored = match EconomicLedger::decode(&ledger.encode()) {
             Ok(value) => value,
             Err(error) => unreachable!("round-trip: {error}"),

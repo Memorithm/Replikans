@@ -99,9 +99,7 @@ impl EconomicFitness {
         let profit = self.checked_realized_net_profit()?.micros();
         let surplus = self.checked_reserve_surplus()?.micros();
         let drawdown_penalty = i128::from(self.drawdown.value()) * 1_000;
-        profit
-            .checked_add(surplus)?
-            .checked_sub(drawdown_penalty)
+        profit.checked_add(surplus)?.checked_sub(drawdown_penalty)
     }
 }
 

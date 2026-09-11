@@ -6,7 +6,7 @@ use replikan_control::{ControlDecision, ControlPolicy};
 use replikan_economics::EconomicFitness;
 use replikan_ledger::LedgerSnapshot;
 use replikan_opportunities::SelectionPolicy;
-use replikan_survival::SurvivalPolicy;
+use replikan_survival::{SurvivalPolicy, SurvivalState};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionObservation {
@@ -79,12 +79,29 @@ impl DecisionObservation {
             decision,
         })
     }
+
+    #[must_use]
+    pub fn survival_state(&self) -> SurvivalState {
+        match &self.decision {
+            ControlDecision::Run { state, .. }
+            | ControlDecision::Hold { state, .. }
+            | ControlDecision::Freeze { state } => *state,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecisionEntry {
     pub sequence: u64,
     pub observation: DecisionObservation,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FitnessPoint {
+    pub sequence: u64,
+    pub observed_at_unix_ms: u64,
+    pub fitness: EconomicFitness,
+    pub state: SurvivalState,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -102,6 +119,19 @@ impl DecisionLedger {
     #[must_use]
     pub fn latest(&self) -> Option<&DecisionEntry> {
         self.entries.last()
+    }
+
+    #[must_use]
+    pub fn fitness_timeline(&self) -> Vec<FitnessPoint> {
+        self.entries
+            .iter()
+            .map(|entry| FitnessPoint {
+                sequence: entry.sequence,
+                observed_at_unix_ms: entry.observation.observed_at_unix_ms,
+                fitness: entry.observation.fitness,
+                state: entry.observation.survival_state(),
+            })
+            .collect()
     }
 
     pub fn append(&mut self, observation: DecisionObservation) -> Result<u64, DecisionLedgerError> {
@@ -309,5 +339,18 @@ mod tests {
             },
         );
         assert_eq!(result, Err(DecisionLedgerError::BlankEvidence));
+    }
+
+    #[test]
+    fn fitness_timeline_preserves_order_and_state() {
+        let mut ledger = DecisionLedger::default();
+        assert_eq!(ledger.append(observation(1_000_000)), Ok(0));
+        assert_eq!(ledger.append(observation(1_000_001)), Ok(1));
+        let timeline = ledger.fitness_timeline();
+        assert_eq!(timeline.len(), 2);
+        assert_eq!(timeline[0].observed_at_unix_ms, 1_000_000);
+        assert_eq!(timeline[1].sequence, 1);
+        assert_eq!(timeline[0].state, SurvivalState::Healthy);
+        assert_eq!(timeline[0].fitness, fitness());
     }
 }

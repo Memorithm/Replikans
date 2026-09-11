@@ -4,6 +4,8 @@ use core::fmt;
 use replikan_core::Money;
 use replikan_economics::OperatingCosts;
 
+const LEDGER_FORMAT: &str = "REPLIKANS_LEDGER_V1";
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EntryKind {
     EarnedRevenue,
@@ -15,6 +17,38 @@ pub enum EntryKind {
     OtherCost,
     CapitalInjection,
     CapitalWithdrawal,
+}
+
+impl EntryKind {
+    #[must_use]
+    pub const fn as_token(self) -> &'static str {
+        match self {
+            Self::EarnedRevenue => "earned_revenue",
+            Self::EnergyCost => "energy_cost",
+            Self::ComputeCost => "compute_cost",
+            Self::NetworkFee => "network_fee",
+            Self::InfrastructureCost => "infrastructure_cost",
+            Self::DepreciationCost => "depreciation_cost",
+            Self::OtherCost => "other_cost",
+            Self::CapitalInjection => "capital_injection",
+            Self::CapitalWithdrawal => "capital_withdrawal",
+        }
+    }
+
+    pub fn parse_token(token: &str) -> Result<Self, LedgerError> {
+        match token {
+            "earned_revenue" => Ok(Self::EarnedRevenue),
+            "energy_cost" => Ok(Self::EnergyCost),
+            "compute_cost" => Ok(Self::ComputeCost),
+            "network_fee" => Ok(Self::NetworkFee),
+            "infrastructure_cost" => Ok(Self::InfrastructureCost),
+            "depreciation_cost" => Ok(Self::DepreciationCost),
+            "other_cost" => Ok(Self::OtherCost),
+            "capital_injection" => Ok(Self::CapitalInjection),
+            "capital_withdrawal" => Ok(Self::CapitalWithdrawal),
+            _ => Err(LedgerError::UnknownEntryKind),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,6 +71,16 @@ impl EconomicLedger {
         &self.entries
     }
 
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     pub fn append(
         &mut self,
         kind: EntryKind,
@@ -50,6 +94,9 @@ impl EconomicLedger {
         let evidence = evidence.into();
         if evidence.trim().is_empty() {
             return Err(LedgerError::MissingEvidence);
+        }
+        if evidence.contains('|') || evidence.contains('\n') || evidence.contains('\r') {
+            return Err(LedgerError::EvidenceNotEncodable);
         }
 
         let sequence = self.next_sequence;
@@ -104,6 +151,55 @@ impl EconomicLedger {
         }
 
         Ok(snapshot)
+    }
+
+    #[must_use]
+    pub fn encode(&self) -> String {
+        let mut out = String::from(LEDGER_FORMAT);
+        out.push('\n');
+        for entry in &self.entries {
+            out.push_str(&format!(
+                "{}|{}|{}|{}\n",
+                entry.sequence,
+                entry.kind.as_token(),
+                entry.amount.micros(),
+                entry.evidence
+            ));
+        }
+        out
+    }
+
+    pub fn decode(text: &str) -> Result<Self, LedgerError> {
+        let mut lines = text.lines();
+        match lines.next() {
+            Some(LEDGER_FORMAT) => {}
+            _ => return Err(LedgerError::InvalidEncoding),
+        }
+
+        let mut ledger = Self::default();
+        for line in lines {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let mut parts = line.splitn(4, '|');
+            let sequence = parts
+                .next()
+                .ok_or(LedgerError::InvalidEncoding)?
+                .parse::<u64>()
+                .map_err(|_| LedgerError::InvalidEncoding)?;
+            let kind = EntryKind::parse_token(parts.next().ok_or(LedgerError::InvalidEncoding)?)?;
+            let amount = parts
+                .next()
+                .ok_or(LedgerError::InvalidEncoding)?
+                .parse::<i128>()
+                .map_err(|_| LedgerError::InvalidEncoding)?;
+            let evidence = parts.next().ok_or(LedgerError::InvalidEncoding)?;
+            if sequence != ledger.next_sequence {
+                return Err(LedgerError::SequenceMismatch);
+            }
+            ledger.append(kind, Money::from_micros(amount), evidence)?;
+        }
+        Ok(ledger)
     }
 }
 
@@ -174,8 +270,12 @@ impl LedgerSnapshot {
 pub enum LedgerError {
     AmountMustBePositive,
     MissingEvidence,
+    EvidenceNotEncodable,
     SequenceOverflow,
+    SequenceMismatch,
     MonetaryOverflow,
+    InvalidEncoding,
+    UnknownEntryKind,
 }
 
 impl fmt::Display for LedgerError {
@@ -183,8 +283,14 @@ impl fmt::Display for LedgerError {
         match self {
             Self::AmountMustBePositive => write!(f, "ledger amounts must be strictly positive"),
             Self::MissingEvidence => write!(f, "ledger entries require evidence"),
+            Self::EvidenceNotEncodable => {
+                write!(f, "ledger evidence cannot contain '|' or newlines")
+            }
             Self::SequenceOverflow => write!(f, "ledger sequence overflow"),
+            Self::SequenceMismatch => write!(f, "ledger sequence mismatch"),
             Self::MonetaryOverflow => write!(f, "ledger monetary overflow"),
+            Self::InvalidEncoding => write!(f, "ledger encoding is invalid"),
+            Self::UnknownEntryKind => write!(f, "unknown ledger entry kind"),
         }
     }
 }
@@ -291,5 +397,55 @@ mod tests {
             Err(LedgerError::MissingEvidence)
         );
         assert!(ledger.entries().is_empty());
+    }
+
+    #[test]
+    fn encode_decode_preserves_entries_and_profit() {
+        let mut ledger = EconomicLedger::default();
+        assert!(
+            ledger
+                .append(
+                    EntryKind::EarnedRevenue,
+                    Money::from_micros(9_000_000),
+                    "rev:1",
+                )
+                .is_ok()
+        );
+        assert!(
+            ledger
+                .append(
+                    EntryKind::CapitalInjection,
+                    Money::from_micros(3_000_000),
+                    "fundn                )
+                .is_ok()
+        );
+        let restored = match EconomicLedger::decode(&ledger.encode()) {
+            Ok(value) => value,
+            Err(error) => unreachable!("round-trip: {error}"),
+        };
+        assert_eq!(restored.entries(), ledger.entries());
+        let original = match ledger.snapshot() {
+            Ok(value) => value,
+            Err(error) => unreachable!("{error}"),
+        };
+        let decoded = match restored.snapshot() {
+            Ok(value) => value,
+            Err(error) => unreachable!("{error}"),
+        };
+        assert_eq!(original, decoded);
+        assert_eq!(decoded.realized_net_profit(), Money::from_micros(9_000_000));
+    }
+
+    #[test]
+    fn rejects_pipe_in_evidence() {
+        let mut ledger = EconomicLedger::default();
+        assert_eq!(
+            ledger.append(
+                EntryKind::EarnedRevenue,
+                Money::from_micros(1),
+                "bad|evidence",
+            ),
+            Err(LedgerError::EvidenceNotEncodable)
+        );
     }
 }

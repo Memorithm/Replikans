@@ -6,3 +6,8 @@
 *.seed
 *.keystore
 wallet.json
+.idea/
+.vscode/
+*.swp
+*.swo
+dump.rdb

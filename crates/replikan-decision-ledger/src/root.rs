@@ -5,7 +5,7 @@ mod archive;
 mod ledger;
 
 pub use archive::{
-    decode_fitness_archive, encode_fitness_archive, persist_fitness_archive, read_fitness_archive,
-    ArchiveError,
+    ArchiveError, decode_fitness_archive, encode_fitness_archive, persist_fitness_archive,
+    read_fitness_archive,
 };
 pub use ledger::*;

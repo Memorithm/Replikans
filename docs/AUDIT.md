@@ -50,7 +50,7 @@ n’a été trouvée dans l’arbre audité.
 | Moyenne | Scanner imparfait | Un secret dans un commentaire, un tableau d’octets ou un fichier hors motifs passe encore. |
 | Moyenne | CLI trading JSON-lines | Surface locale utile, mais pas d’authn du processus appelant. |
 | Basse | `replikan` vs `replikan-trading` | Deux binaires, responsabilités différentes, peu découvrables avant le README. |
-| Basse | Decision ledger partiel | Archive fitness append-only existe ; le journal de décisions complet reste en mémoire. |
+| Basse | Preuves textuelles | Journal de décisions persistable, mais toujours sans sceau cryptographique. |
 | Info | 0 issue / 0 star | Projet jeune ; pas de tracker public des dettes. |
 
 ## Invariants vérifiés
@@ -68,11 +68,11 @@ n’a été trouvée dans l’arbre audité.
 - `consider_replication` / `consider_replication_from_archive` / `assess_cycle_replication`
   évaluent la réplication après un cycle sans signer ni dépenser.
 - Tests overflow `Money` : `checked_*` refuse, `+`/`-` saturent, `abs(i128::MIN)` échoue.
+- Journal `REPLIKANS_DECISION_V1` : encode/decode fail-closed, persistance append-only.
 
 ## Recommandations suivantes
 
 1. Vérification cryptographique des preuves de ledger (mentionnée dans SECURITY).
-2. Persister le decision ledger complet (pas seulement la timeline fitness).
-3. Matrice d’adaptateurs (réseau / exchange / mining) avec dry-run obligatoire.
-4. Property tests plus larges sur timestamps, preuves vides et fenêtres de fitness.
-5. Ne pas activer d’adaptateur live tant que le paper runtime n’a pas d’évidence bornée dans le temps.
+2. Matrice d’adaptateurs (réseau / exchange / mining) avec dry-run obligatoire.
+3. Property tests plus larges sur timestamps, preuves vides et fenêtres de fitness.
+4. Ne pas activer d’adaptateur live tant que le paper runtime n’a pas d’évidence bornée dans le temps.

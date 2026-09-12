@@ -106,7 +106,7 @@ pub fn decode_fitness_archive(text: &str) -> Result<Vec<FitnessPoint>, ArchiveEr
         _ => return Err(ArchiveError::InvalidEncoding),
     }
 
-    let mut points = Vec::new();
+    let mut points: Vec<FitnessPoint> = Vec::new();
     for line in lines {
         if line.trim().is_empty() {
             continue;

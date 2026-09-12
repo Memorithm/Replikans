@@ -7,11 +7,12 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "replikan"
+name = "replikans"
 path = "src/main.rs"
 
 [dependencies]
 replikan-core = { path = "../replikan-core" }
+replikan-decision-ledger = { path = "../replikan-decision-ledger" }
 replikan-economics = { path = "../replikan-economics" }
 replikan-ledger = { path = "../replikan-ledger" }
 replikan-replication = { path = "../replikan-replication" }

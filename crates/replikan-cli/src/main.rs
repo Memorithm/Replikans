@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use replikan_core::{BasisPoints, Money};
+use replikan_decision_ledger::{decode_fitness_archive, encode_fitness_archive, FitnessPoint};
 use replikan_economics::{
     EconomicFitness, OperatingCosts, OpportunityEstimate, OpportunityPolicy, evaluate_opportunity,
 };
@@ -168,21 +169,21 @@ fn run_demo() -> Result<(), String> {
         .append(
             EntryKind::EarnedRevenue,
             Money::from_micros(20_000_000),
-            "demo:pool-payout",
+            "demo-pool-payout",
         )
         .map_err(|error| error.to_string())?;
     ledger
         .append(
             EntryKind::EnergyCost,
             Money::from_micros(4_000_000),
-            "demo:energy-invoice",
+            "demo-energy-invoice",
         )
         .map_err(|error| error.to_string())?;
     ledger
         .append(
             EntryKind::CapitalInjection,
             Money::from_micros(10_000_000),
-            "demo:external-funding",
+            "demo-external-funding",
         )
         .map_err(|error| error.to_string())?;
     let snapshot = ledger.snapshot().map_err(|error| error.to_string())?;
@@ -198,6 +199,35 @@ fn run_demo() -> Result<(), String> {
         restored.entries() == ledger.entries()
     );
 
+    let points = [
+        FitnessPoint {
+            sequence: 0,
+            observed_at_unix_ms: 1_000,
+            fitness,
+            state: SurvivalState::Healthy,
+        },
+        FitnessPoint {
+            sequence: 1,
+            observed_at_unix_ms: 2_000,
+            fitness,
+            state: SurvivalState::Healthy,
+        },
+        FitnessPoint {
+            sequence: 2,
+            observed_at_unix_ms: 3_000,
+            fitness,
+            state: SurvivalState::Healthy,
+        },
+    ];
+    let archive = encode_fitness_archive(&points);
+    let restored_points = decode_fitness_archive(&archive).map_err(|error| error.to_string())?;
+    println!("== fitness archive ==");
+    println!(
+        "archive_roundtrip_ok={}",
+        restored_points.as_slice() == points.as_slice()
+    );
+    println!("archive_points={}", restored_points.len());
+
     let child = ReplicationCandidate {
         expected_lifetime_revenue: Money::from_micros(80_000_000),
         expected_lifetime_operating_cost: Money::from_micros(20_000_000),
@@ -210,23 +240,14 @@ fn run_demo() -> Result<(), String> {
         minimum_child_expected_net_value: Money::from_micros(5_000_000),
         minimum_post_replication_reserve: Money::from_micros(40_000_000),
     };
-    let samples = [
-        FitnessSample {
-            observed_at_unix_ms: 1_000,
-            fitness,
-            state: SurvivalState::Healthy,
-        },
-        FitnessSample {
-            observed_at_unix_ms: 2_000,
-            fitness,
-            state: SurvivalState::Healthy,
-        },
-        FitnessSample {
-            observed_at_unix_ms: 3_000,
-            fitness,
-            state: SurvivalState::Healthy,
-        },
-    ];
+    let samples: Vec<FitnessSample> = restored_points
+        .into_iter()
+        .map(|point| FitnessSample {
+            observed_at_unix_ms: point.observed_at_unix_ms,
+            fitness: point.fitness,
+            state: point.state,
+        })
+        .collect();
     let decision = evaluate_replication_with_history(
         fitness,
         state,

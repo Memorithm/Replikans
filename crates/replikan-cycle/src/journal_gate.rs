@@ -40,8 +40,8 @@ pub fn consider_replication_from_journal(
     now_unix_ms: u64,
     sustained: SustainedFitnessPolicy,
 ) -> Result<ReplicationDecision, JournalReplicationError> {
-    let ledger = decode_decision_journal(journal_text)
-        .map_err(JournalReplicationError::Journal)?;
+    let ledger =
+        decode_decision_journal(journal_text).map_err(JournalReplicationError::Journal)?;
     consider_replication(
         &ledger,
         parent,
@@ -59,7 +59,9 @@ mod tests {
     use super::*;
     use replikan_control::{ControlDecision, ControlPolicy, HoldReason};
     use replikan_core::{BasisPoints, Money};
-    use replikan_decision_ledger::{DecisionLedger, DecisionObservation, encode_decision_journal};
+    use replikan_decision_ledger::{
+        DecisionLedger, DecisionObservation, encode_decision_journal,
+    };
     use replikan_economics::{OperatingCosts, OpportunityPolicy};
     use replikan_ledger::LedgerSnapshot;
     use replikan_opportunities::SelectionPolicy;

@@ -68,7 +68,9 @@ fn parse_money(token: &str) -> Result<Money, ArchiveError> {
 }
 
 fn parse_u64(token: &str) -> Result<u64, ArchiveError> {
-    token.parse::<u64>().map_err(|_| ArchiveError::InvalidEncoding)
+    token
+        .parse::<u64>()
+        .map_err(|_| ArchiveError::InvalidEncoding)
 }
 
 /// Deterministic text snapshot of realized fitness points (roadmap REP1 / REP5).
@@ -126,8 +128,7 @@ pub fn decode_fitness_archive(text: &str) -> Result<Vec<FitnessPoint>, ArchiveEr
             .ok_or(ArchiveError::InvalidEncoding)?
             .parse::<u32>()
             .map_err(|_| ArchiveError::InvalidEncoding)?;
-        let drawdown =
-            BasisPoints::new(drawdown_raw).map_err(|_| ArchiveError::InvalidDrawdown)?;
+        let drawdown = BasisPoints::new(drawdown_raw).map_err(|_| ArchiveError::InvalidDrawdown)?;
         let state = parse_state(parts.next().ok_or(ArchiveError::InvalidEncoding)?)?;
         if parts.next().is_some() {
             return Err(ArchiveError::InvalidEncoding);
@@ -164,10 +165,7 @@ pub fn decode_fitness_archive(text: &str) -> Result<Vec<FitnessPoint>, ArchiveEr
 }
 
 /// Create or extend an archive. Existing bytes must be a prefix of the new series.
-pub fn persist_fitness_archive(
-    path: &Path,
-    points: &[FitnessPoint],
-) -> Result<(), ArchiveError> {
+pub fn persist_fitness_archive(path: &Path, points: &[FitnessPoint]) -> Result<(), ArchiveError> {
     if path.exists() {
         let existing = read_fitness_archive(path)?;
         if existing.len() > points.len() {
@@ -248,25 +246,21 @@ mod tests {
             Some(ArchiveError::InvalidEncoding)
         );
         assert_eq!(
-            decode_fitness_archive(
-                "REPLIKANS_FITNESS_V1\n1|1000|1|0|0|0|0|0|0|1|1|0|healthy\n"
-            )
-            .err(),
+            decode_fitness_archive("REPLIKANS_FITNESS_V1\n1|1000|1|0|0|0|0|0|0|1|1|0|healthy\n")
+                .err(),
             Some(ArchiveError::SequenceMismatch)
         );
         assert_eq!(
-            decode_fitness_archive(
-                "REPLIKANS_FITNESS_V1\n0|1000|1|0|0|0|0|0|0|1|1|0|unknown\n"
-            )
-            .err(),
+            decode_fitness_archive("REPLIKANS_FITNESS_V1\n0|1000|1|0|0|0|0|0|0|1|1|0|unknown\n")
+                .err(),
             Some(ArchiveError::UnknownSurvivalState)
         );
         assert_eq!(
             decode_fitness_archive(
-                "REPLIKANS_FITNESS_V1\n0|2000|1|0|0|0|0|0|0|1|1|0|healthy\n0|1000|1|0|0|0|0|0|0|1|1|0|healthy\n"
+                "REPLIKANS_FITNESS_V1\n0|2000|1|0|0|0|0|0|0|1|1|0|healthy\n1|1000|1|0|0|0|0|0|0|1|1|0|healthy\n",
             )
             .err(),
-            Some(ArchiveError::SequenceMismatch)
+            Some(ArchiveError::TimestampRegression)
         );
     }
 

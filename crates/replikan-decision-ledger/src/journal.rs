@@ -126,15 +126,21 @@ fn parse_money(token: &str) -> Result<Money, JournalError> {
 }
 
 fn parse_u64(token: &str) -> Result<u64, JournalError> {
-    token.parse::<u64>().map_err(|_| JournalError::InvalidEncoding)
+    token
+        .parse::<u64>()
+        .map_err(|_| JournalError::InvalidEncoding)
 }
 
 fn parse_usize(token: &str) -> Result<usize, JournalError> {
-    token.parse::<usize>().map_err(|_| JournalError::InvalidEncoding)
+    token
+        .parse::<usize>()
+        .map_err(|_| JournalError::InvalidEncoding)
 }
 
 fn parse_bps(token: &str) -> Result<BasisPoints, JournalError> {
-    let raw = token.parse::<u32>().map_err(|_| JournalError::InvalidEncoding)?;
+    let raw = token
+        .parse::<u32>()
+        .map_err(|_| JournalError::InvalidEncoding)?;
     BasisPoints::new(raw).map_err(|_| JournalError::InvalidDrawdown)
 }
 
@@ -227,8 +233,8 @@ fn parse_decision(parts: &mut std::str::Split<'_, char>) -> Result<ControlDecisi
         "run" => {
             let state = parse_state(next(parts)?)?;
             let mode = parse_mode(next(parts)?)?;
-            let opportunity_id =
-                OpportunityId::new(next(parts)?.to_owned()).map_err(|_| JournalError::InvalidEncoding)?;
+            let opportunity_id = OpportunityId::new(next(parts)?.to_owned())
+                .map_err(|_| JournalError::InvalidEncoding)?;
             let expected_net_profit = parse_money(next(parts)?)?;
             let capital_required = parse_money(next(parts)?)?;
             if parts.next().is_some() {
@@ -279,7 +285,10 @@ pub fn encode_decision_journal(ledger: &DecisionLedger) -> Result<String, Journa
         push_money(&mut fields, observation.ledger_snapshot.realized_revenue);
         push_costs(&mut fields, observation.ledger_snapshot.costs);
         push_money(&mut fields, observation.ledger_snapshot.external_capital_in);
-        push_money(&mut fields, observation.ledger_snapshot.external_capital_out);
+        push_money(
+            &mut fields,
+            observation.ledger_snapshot.external_capital_out,
+        );
         push_money(&mut fields, observation.fitness.realized_revenue);
         push_costs(&mut fields, observation.fitness.realized_costs);
         push_money(&mut fields, observation.fitness.liquid_capital);
@@ -311,12 +320,34 @@ pub fn encode_decision_journal(ledger: &DecisionLedger) -> Result<String, Journa
                 .value()
                 .to_string(),
         );
-        fields.push(observation.selection_policy.maximum_quote_age_ms.to_string());
-        fields.push(observation.selection_policy.minimum_evidence_count.to_string());
-        fields.push(observation.selection_policy.capital_charge.value().to_string());
+        fields.push(
+            observation
+                .selection_policy
+                .maximum_quote_age_ms
+                .to_string(),
+        );
+        fields.push(
+            observation
+                .selection_policy
+                .minimum_evidence_count
+                .to_string(),
+        );
+        fields.push(
+            observation
+                .selection_policy
+                .capital_charge
+                .value()
+                .to_string(),
+        );
         push_money(&mut fields, observation.survival_policy.critical_reserve);
         push_money(&mut fields, observation.survival_policy.constrained_reserve);
-        fields.push(observation.survival_policy.maximum_drawdown.value().to_string());
+        fields.push(
+            observation
+                .survival_policy
+                .maximum_drawdown
+                .value()
+                .to_string(),
+        );
         push_money(
             &mut fields,
             observation.control_policy.preserve_capital_max_new_capital,
@@ -400,12 +431,9 @@ pub fn decode_decision_journal(text: &str) -> Result<DecisionLedger, JournalErro
                     minimum_evidence_count: usizev(&mut parts)?,
                     capital_charge: bps(&mut parts)?,
                 };
-                let survival_policy = SurvivalPolicy::new(
-                    money(&mut parts)?,
-                    money(&mut parts)?,
-                    bps(&mut parts)?,
-                )
-                .map_err(|_: SurvivalPolicyError| JournalError::InvalidPolicy)?;
+                let survival_policy =
+                    SurvivalPolicy::new(money(&mut parts)?, money(&mut parts)?, bps(&mut parts)?)
+                        .map_err(|_: SurvivalPolicyError| JournalError::InvalidPolicy)?;
                 let control_policy = ControlPolicy::new(
                     money(&mut parts)?,
                     money(&mut parts)?,
@@ -500,9 +528,10 @@ fn commit_pending(
         observation.decision,
     )
     .map_err(JournalError::Observation)?;
-    ledger
-        .append(observation)
-        .map_err(JournalError::Observation)?;
+    ledger.append(observation).map_err(|error| match error {
+        DecisionLedgerError::TimestampRegression { .. } => JournalError::TimestampRegression,
+        other => JournalError::Observation(other),
+    })?;
     Ok(())
 }
 
@@ -523,4 +552,208 @@ pub fn persist_decision_journal(path: &Path, ledger: &DecisionLedger) -> Result<
 pub fn read_decision_journal(path: &Path) -> Result<DecisionLedger, JournalError> {
     let text = fs::read_to_string(path).map_err(|_| JournalError::Io)?;
     decode_decision_journal(&text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use replikan_control::{ControlDecision, HoldReason};
+    use replikan_survival::SpendingMode;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn bps(value: u32) -> BasisPoints {
+        match BasisPoints::new(value) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid basis points: {error}"),
+        }
+    }
+
+    fn observation(at: u64, decision: ControlDecision) -> DecisionObservation {
+        match DecisionObservation::new(
+            at,
+            LedgerSnapshot {
+                realized_revenue: Money::from_micros(20_000_000),
+                costs: OperatingCosts::default(),
+                external_capital_in: Money::ZERO,
+                external_capital_out: Money::ZERO,
+            },
+            EconomicFitness {
+                realized_revenue: Money::from_micros(20_000_000),
+                realized_costs: OperatingCosts::default(),
+                liquid_capital: Money::from_micros(80_000_000),
+                survival_reserve: Money::from_micros(40_000_000),
+                drawdown: bps(500),
+            },
+            SelectionPolicy {
+                economics: OpportunityPolicy {
+                    max_risk: bps(2_000),
+                    minimum_net_profit: Money::from_micros(1_000_000),
+                    minimum_post_action_reserve: Money::from_micros(40_000_000),
+                },
+                minimum_confidence: bps(7_000),
+                maximum_quote_age_ms: 60_000,
+                minimum_evidence_count: 2,
+                capital_charge: bps(100),
+            },
+            match SurvivalPolicy::new(
+                Money::from_micros(20_000_000),
+                Money::from_micros(50_000_000),
+                bps(2_000),
+            ) {
+                Ok(value) => value,
+                Err(error) => unreachable!("valid survival policy: {error}"),
+            },
+            match ControlPolicy::new(
+                Money::ZERO,
+                Money::ZERO,
+                Money::from_micros(15_000_000),
+                Money::from_micros(5_000_000),
+            ) {
+                Ok(value) => value,
+                Err(error) => unreachable!("valid control policy: {error}"),
+            },
+            2,
+            1,
+            1,
+            1,
+            2,
+            2,
+            vec!["price:coinbase".to_owned(), "network:mempool".to_owned()],
+            vec!["one resource rejected".to_owned()],
+            decision,
+        ) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid decision observation: {error}"),
+        }
+    }
+
+    fn hold_decision() -> ControlDecision {
+        ControlDecision::Hold {
+            state: SurvivalState::Healthy,
+            mode: SpendingMode::Normal,
+            reason: HoldReason::NoAcceptedOpportunity,
+        }
+    }
+
+    fn sample_ledger() -> DecisionLedger {
+        let mut ledger = DecisionLedger::default();
+        match ledger.append(observation(1_000, hold_decision())) {
+            Ok(_) => {}
+            Err(error) => unreachable!("append: {error}"),
+        }
+        match ledger.append(observation(
+            2_000,
+            ControlDecision::Freeze {
+                state: SurvivalState::Critical,
+            },
+        )) {
+            Ok(_) => {}
+            Err(error) => unreachable!("append: {error}"),
+        }
+        ledger
+    }
+
+    #[test]
+    fn encode_decode_preserves_decisions_and_evidence() {
+        let original = sample_ledger();
+        let encoded = match encode_decision_journal(&original) {
+            Ok(value) => value,
+            Err(error) => unreachable!("encode: {error}"),
+        };
+        let restored = match decode_decision_journal(&encoded) {
+            Ok(value) => value,
+            Err(error) => unreachable!("decode: {error}"),
+        };
+        assert_eq!(restored.entries(), original.entries());
+        assert!(encoded.starts_with("REPLIKANS_DECISION_V1\n"));
+    }
+
+    #[test]
+    fn decode_rejects_bad_header_sequence_and_pipe_evidence() {
+        assert_eq!(
+            decode_decision_journal("NOT_A_JOURNAL\n").err(),
+            Some(JournalError::InvalidEncoding)
+        );
+        let mut ledger = sample_ledger();
+        let encoded = match encode_decision_journal(&ledger) {
+            Ok(value) => value,
+            Err(error) => unreachable!("encode: {error}"),
+        };
+        let gapped = encoded.replacen("OBS|0|", "OBS|1|", 1);
+        assert_eq!(
+            decode_decision_journal(&gapped).err(),
+            Some(JournalError::SequenceMismatch)
+        );
+        match ledger.append(observation(500, hold_decision())) {
+            Ok(_) => unreachable!("expected timestamp regression"),
+            Err(DecisionLedgerError::TimestampRegression { .. }) => {}
+            Err(error) => unreachable!("unexpected append error: {error}"),
+        }
+        let mut poisoned = DecisionLedger::default();
+        match poisoned.append(observation(1_000, hold_decision())) {
+            Ok(_) => {}
+            Err(error) => unreachable!("append: {error}"),
+        }
+        let mut text = match encode_decision_journal(&poisoned) {
+            Ok(value) => value,
+            Err(error) => unreachable!("encode: {error}"),
+        };
+        text = text.replace("price:coinbase", "price|coinbase");
+        assert_eq!(
+            decode_decision_journal(&text).err(),
+            Some(JournalError::InvalidEncoding)
+        );
+    }
+
+    #[test]
+    fn persist_is_append_only_and_rejects_rewrites() {
+        let stamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(value) => value.as_nanos(),
+            Err(_) => 1,
+        };
+        let path = std::env::temp_dir().join(format!("replikans-decision-{stamp}.txt"));
+        let mut first = DecisionLedger::default();
+        match first.append(observation(1_000, hold_decision())) {
+            Ok(_) => {}
+            Err(error) => unreachable!("append: {error}"),
+        }
+        let second = sample_ledger();
+        assert!(persist_decision_journal(&path, &first).is_ok());
+        assert!(persist_decision_journal(&path, &second).is_ok());
+        let loaded = match read_decision_journal(&path) {
+            Ok(value) => value,
+            Err(error) => unreachable!("read: {error}"),
+        };
+        assert_eq!(loaded.entries(), second.entries());
+        let mut conflicting = DecisionLedger::default();
+        match conflicting.append(observation(
+            9_000,
+            ControlDecision::Freeze {
+                state: SurvivalState::Insolvent,
+            },
+        )) {
+            Ok(_) => {}
+            Err(error) => unreachable!("append: {error}"),
+        }
+        assert_eq!(
+            persist_decision_journal(&path, &conflicting),
+            Err(JournalError::ExistingJournalConflict)
+        );
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn encode_rejects_pipe_in_evidence() {
+        let mut ledger = DecisionLedger::default();
+        let mut observation = observation(1_000, hold_decision());
+        observation.evidence = vec!["bad|token".to_owned()];
+        match ledger.append(observation) {
+            Ok(_) => {}
+            Err(error) => unreachable!("append: {error}"),
+        }
+        assert_eq!(
+            encode_decision_journal(&ledger).err(),
+            Some(JournalError::FieldNotEncodable)
+        );
+    }
 }

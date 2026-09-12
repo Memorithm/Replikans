@@ -33,7 +33,7 @@ realized paper evidence exists.
 | `replikan-replication` | Replication gate, including sustained-fitness window |
 | `replikan-ledger` | Evidence-backed economic journal |
 | `replikan-control` | Survival-aware run / hold / freeze |
-| `replikan-cycle` | Authorized Bitcoin planning cycle and post-cycle replication gate |
+| `replikan-cycle` | Authorized Bitcoin planning cycle and post-cycle replication gate (ledger, archive, journal) |
 | `replikan-decision-ledger` | Decision journal and append-only fitness archive |
 | `replikan-execution-lease` | Time-bounded execution authorization |
 | `replikan-trading` | Durable paper spot runtime (SciRust contracts) |

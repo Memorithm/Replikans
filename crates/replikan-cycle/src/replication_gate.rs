@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
-use replikan_decision_ledger::DecisionLedger;
+use core::fmt;
+
+use replikan_decision_ledger::{ArchiveError, DecisionLedger, decode_fitness_archive};
 use replikan_economics::EconomicFitness;
 use replikan_replication::{
     FitnessSample, ReplicationCandidate, ReplicationDecision, ReplicationPolicy,
@@ -8,6 +10,8 @@ use replikan_replication::{
     evaluate_replication_with_history,
 };
 use replikan_survival::SurvivalState;
+
+use crate::cycle::CycleReport;
 
 /// Project recorded control observations into the sustained-fitness sample type.
 #[must_use]
@@ -51,16 +55,102 @@ pub fn consider_replication(
     )
 }
 
+fn cycle_survival_state(decision: &replikan_control::ControlDecision) -> SurvivalState {
+    match decision {
+        replikan_control::ControlDecision::Run { state, .. }
+        | replikan_control::ControlDecision::Hold { state, .. }
+        | replikan_control::ControlDecision::Freeze { state } => *state,
+    }
+}
+
+/// Evaluate replication after a recorded cycle using the cycle fitness and the
+/// survival state already sealed into the control decision. This never signs,
+/// spends, or launches a child instance.
+pub fn assess_cycle_replication(
+    report: &CycleReport,
+    decision_ledger: &DecisionLedger,
+    child: ReplicationCandidate,
+    policy: ReplicationPolicy,
+    now_unix_ms: u64,
+    sustained: SustainedFitnessPolicy,
+) -> Result<ReplicationDecision, SustainedFitnessError> {
+    consider_replication(
+        decision_ledger,
+        report.economic.fitness,
+        cycle_survival_state(&report.decision),
+        child,
+        policy,
+        now_unix_ms,
+        sustained,
+    )
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArchiveReplicationError {
+    Archive(ArchiveError),
+    Sustained(SustainedFitnessError),
+}
+
+impl fmt::Display for ArchiveReplicationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Archive(error) => write!(f, "fitness archive failed: {error}"),
+            Self::Sustained(error) => write!(f, "sustained fitness failed: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for ArchiveReplicationError {}
+
+/// Same gate as [`consider_replication`], sourced from a persisted archive.
+/// Corrupt encoding fails closed as an error; an empty valid archive is unproven.
+pub fn consider_replication_from_archive(
+    archive_text: &str,
+    parent: EconomicFitness,
+    parent_state: SurvivalState,
+    child: ReplicationCandidate,
+    policy: ReplicationPolicy,
+    now_unix_ms: u64,
+    sustained: SustainedFitnessPolicy,
+) -> Result<ReplicationDecision, ArchiveReplicationError> {
+    let points = decode_fitness_archive(archive_text).map_err(ArchiveReplicationError::Archive)?;
+    let samples: Vec<FitnessSample> = points
+        .into_iter()
+        .map(|point| FitnessSample {
+            observed_at_unix_ms: point.observed_at_unix_ms,
+            fitness: point.fitness,
+            state: point.state,
+        })
+        .collect();
+    if samples.is_empty() {
+        return Ok(ReplicationDecision::Rejected(
+            ReplicationRejection::SustainedFitnessUnproven,
+        ));
+    }
+    evaluate_replication_with_history(
+        parent,
+        parent_state,
+        child,
+        policy,
+        &samples,
+        now_unix_ms,
+        sustained,
+    )
+    .map_err(ArchiveReplicationError::Sustained)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use replikan_control::{ControlDecision, ControlPolicy, HoldReason};
     use replikan_core::{BasisPoints, Money};
-    use replikan_decision_ledger::DecisionObservation;
+    use replikan_decision_ledger::{DecisionObservation, FitnessPoint, encode_fitness_archive};
     use replikan_economics::{OperatingCosts, OpportunityPolicy};
-    use replikan_ledger::LedgerSnapshot;
+    use replikan_ledger::{EconomicLedger, LedgerSnapshot};
     use replikan_opportunities::SelectionPolicy;
     use replikan_survival::{SpendingMode, SurvivalPolicy};
+
+    use crate::cycle::{CapitalBaseline, CycleEconomicState};
 
     fn bps(value: u32) -> BasisPoints {
         match BasisPoints::new(value) {
@@ -170,6 +260,45 @@ mod tests {
         }
     }
 
+    fn archive_point(sequence: u64, at: u64) -> FitnessPoint {
+        FitnessPoint {
+            sequence,
+            observed_at_unix_ms: at,
+            fitness: fitness(),
+            state: SurvivalState::Healthy,
+        }
+    }
+
+    fn synthetic_report(state: SurvivalState) -> CycleReport {
+        let ledger = EconomicLedger::default();
+        let baseline = match CapitalBaseline::new(
+            Money::from_micros(100_000_000),
+            Money::from_micros(50_000_000),
+            bps(500),
+        ) {
+            Ok(value) => value,
+            Err(error) => unreachable!("valid baseline: {error}"),
+        };
+        let economic = match crate::cycle::derive_economic_state(&ledger, baseline) {
+            Ok(value) => CycleEconomicState {
+                ledger_snapshot: value.ledger_snapshot,
+                fitness: fitness(),
+            },
+            Err(error) => unreachable!("valid economic state: {error}"),
+        };
+        CycleReport {
+            economic,
+            plan: None,
+            decision: ControlDecision::Hold {
+                state,
+                mode: SpendingMode::Normal,
+                reason: HoldReason::NoAcceptedOpportunity,
+            },
+            decision_sequence: 0,
+            planning_diagnostic: None,
+        }
+    }
+
     #[test]
     fn empty_decision_history_fails_closed() {
         let ledger = DecisionLedger::default();
@@ -223,6 +352,100 @@ mod tests {
         assert_eq!(timeline_samples(&ledger).len(), 3);
         let decision = match consider_replication(
             &ledger,
+            fitness(),
+            SurvivalState::Healthy,
+            child(),
+            replication_policy(),
+            3_000,
+            short_window(),
+        ) {
+            Ok(value) => value,
+            Err(error) => unreachable!("{error}"),
+        };
+        assert_eq!(decision, ReplicationDecision::Allowed);
+    }
+
+    #[test]
+    fn cycle_assessment_uses_sealed_survival_state() {
+        let mut ledger = DecisionLedger::default();
+        assert_eq!(ledger.append(observation(1_000)), Ok(0));
+        assert_eq!(ledger.append(observation(2_000)), Ok(1));
+        assert_eq!(ledger.append(observation(3_000)), Ok(2));
+        let healthy = synthetic_report(SurvivalState::Healthy);
+        let allowed = match assess_cycle_replication(
+            &healthy,
+            &ledger,
+            child(),
+            replication_policy(),
+            3_000,
+            short_window(),
+        ) {
+            Ok(value) => value,
+            Err(error) => unreachable!("{error}"),
+        };
+        assert_eq!(allowed, ReplicationDecision::Allowed);
+
+        let constrained = synthetic_report(SurvivalState::Constrained);
+        let rejected = match assess_cycle_replication(
+            &constrained,
+            &ledger,
+            child(),
+            replication_policy(),
+            3_000,
+            short_window(),
+        ) {
+            Ok(value) => value,
+            Err(error) => unreachable!("{error}"),
+        };
+        assert_eq!(
+            rejected,
+            ReplicationDecision::Rejected(ReplicationRejection::ParentNotHealthy)
+        );
+    }
+
+    #[test]
+    fn empty_archive_is_unproven_and_corrupt_archive_fails_closed() {
+        let empty = match consider_replication_from_archive(
+            "REPLIKANS_FITNESS_V1\n",
+            fitness(),
+            SurvivalState::Healthy,
+            child(),
+            replication_policy(),
+            3_000,
+            short_window(),
+        ) {
+            Ok(value) => value,
+            Err(error) => unreachable!("empty valid archive is a rejection: {error}"),
+        };
+        assert_eq!(
+            empty,
+            ReplicationDecision::Rejected(ReplicationRejection::SustainedFitnessUnproven)
+        );
+        assert_eq!(
+            consider_replication_from_archive(
+                "NOT_AN_ARCHIVE\n",
+                fitness(),
+                SurvivalState::Healthy,
+                child(),
+                replication_policy(),
+                3_000,
+                short_window(),
+            ),
+            Err(ArchiveReplicationError::Archive(
+                ArchiveError::InvalidEncoding
+            ))
+        );
+    }
+
+    #[test]
+    fn persisted_archive_can_prove_sustained_fitness() {
+        let text = encode_fitness_archive(&[
+            archive_point(0, 1_000),
+            archive_point(1, 2_000),
+            archive_point(2, 3_000),
+        ]);
+        let decision = match consider_replication_from_archive(
+            &text,
             fitness(),
             SurvivalState::Healthy,
             child(),

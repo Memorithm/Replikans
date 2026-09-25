@@ -27,7 +27,8 @@ Required CI must be green on the exact PR head before merge.
 
 For trading mission, agent supervision or execution-policy work, also read
 `docs/TRADING_MISSIONS.md`. It records the supported paper accounting scope and
-remaining live delivery gates. Keep mission limits in the deterministic Rust
+remaining live delivery gates. Read `docs/TRADING_MARKET_DATA.md` for collected
+quote provenance, freshness and paper execution limits. Keep mission limits in the deterministic Rust
 runtime, never in model-only instructions. Preserve pinned SciRust exact contracts.
 Paper fixtures and scripted-model acceptance must not be reported as real revenue,
 real-model qualification or live exchange readiness.

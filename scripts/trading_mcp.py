@@ -45,6 +45,9 @@ INTENT = obj({
                       "price": DECIMAL, "observed_at_ms": TIME, "valid_until_ms": TIME}),
 })
 ID = obj({"client_order_id": TEXT})
+# Optional for legacy synthetic sessions; mandatory in Rust when a public feed
+# policy is configured. The agent can name a snapshot, never import its bytes.
+INTENT["properties"]["market_snapshot_id"] = TEXT
 
 
 def tool(name, description, schema, readonly=False, idempotent=False):
@@ -67,6 +70,7 @@ TOOLS = [
     tool("execution_reconcile", "Query venue receipts and persist them; absence never authorizes resubmission.", ID),
     tool("account_snapshot", "Read exact balances, fills and unresolved recovery identities.", obj(), True),
     tool("mission_status", "Read immutable operator objective, exact closed-cycle net quote results and entry stop/budget state. No unrealized valuation or profit guarantee.", obj(), True),
+    tool("market_snapshot", "Read the latest fresh runtime-collected bid/ask, exact order references and snapshot identity. No price input or refresh authority.", obj(), True),
     tool("session_export", "Export journal decisions and receipts. Bounded response; no key material.", obj(), True),
 ]
 BY_NAME = {item["name"]: item for item in TOOLS}
@@ -133,7 +137,7 @@ class BackendError(Exception):
 
 
 class RustBackend:
-    def __init__(self, command, timeout=15.0, output_limit=MAX_OUTPUT):
+    def __init__(self, command, timeout=30.0, output_limit=MAX_OUTPUT):
         self.command = command
         self.timeout = timeout
         self.output_limit = output_limit
@@ -285,6 +289,7 @@ class Server:
                       "order_submit": "dispatch", "order_cancel": "cancel",
                       "execution_reconcile": "reconcile", "account_snapshot": "snapshot",
                       "mission_status": "mission_status",
+                      "market_snapshot": "market_snapshot",
                       "session_export": "export", "instrument_rules": "export", "order_get": "snapshot"}
         forwarded = {} if name in ("instrument_rules", "order_get") else arguments
         value = self.backend.call({"operation": operations[name], **forwarded})
@@ -333,7 +338,7 @@ def main():
     parser.add_argument("--config", required=True)
     parser.add_argument("--journal", required=True)
     parser.add_argument("--paper-venue", required=True)
-    parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
     if not math.isfinite(args.timeout) or not 0 < args.timeout <= 60:
         parser.error("timeout must be finite and in (0, 60]")

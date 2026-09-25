@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+replikan-market-http = { path = "../replikan-market-http" }
 scirust-trader = { git = "https://github.com/Memorithm/scirust", rev = "8f597e2edbe281b01cfa30a99b1a25d57c32fb70" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

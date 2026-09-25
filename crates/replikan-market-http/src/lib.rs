@@ -143,11 +143,40 @@ pub struct ReqwestHttpTransport {
 
 impl ReqwestHttpTransport {
     pub fn new(policy: HttpPolicy) -> Result<Self, TransportError> {
-        let client = Client::builder()
+        Self::with_certificates(policy, Vec::new())
+    }
+
+    /// Add an explicit operator CA bundle, e.g. for a managed HTTPS proxy.
+    /// Normal chain/hostname validation and built-in roots remain enabled.
+    pub fn new_with_ca_bundle(policy: HttpPolicy, pem: &[u8]) -> Result<Self, TransportError> {
+        if pem.is_empty() || pem.len() > 1_048_576 {
+            return Err(TransportError::InvalidPolicy(
+                "CA bundle size outside bounds",
+            ));
+        }
+        let certs = reqwest::Certificate::from_pem_bundle(pem)
+            .map_err(|_| TransportError::InvalidPolicy("invalid CA PEM bundle"))?;
+        if certs.is_empty() {
+            return Err(TransportError::InvalidPolicy(
+                "CA bundle contains no certificates",
+            ));
+        }
+        Self::with_certificates(policy, certs)
+    }
+
+    fn with_certificates(
+        policy: HttpPolicy,
+        certs: Vec<reqwest::Certificate>,
+    ) -> Result<Self, TransportError> {
+        let mut builder = Client::builder()
             .connect_timeout(policy.connect_timeout())
             .timeout(policy.request_timeout())
             .redirect(Policy::none())
-            .user_agent("replikans-market-readonly/0.1")
+            .user_agent("replikans-market-readonly/0.1");
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
+        let client = builder
             .build()
             .map_err(|error| TransportError::ClientBuild(error.to_string()))?;
 
@@ -429,6 +458,24 @@ mod tests {
             bounded_utf8_body(vec![0xff], 4),
             Err(TransportError::NonUtf8Response)
         ));
+    }
+
+    #[test]
+    fn custom_ca_bundle_rejects_empty_invalid_and_oversized_inputs() -> Result<(), TransportError> {
+        for pem in [
+            Vec::new(),
+            b"not a certificate".to_vec(),
+            vec![b'x'; 1_048_577],
+        ] {
+            assert!(
+                ReqwestHttpTransport::new_with_ca_bundle(
+                    HttpPolicy::public_exchange_defaults()?,
+                    &pem
+                )
+                .is_err()
+            );
+        }
+        Ok(())
     }
 
     #[test]

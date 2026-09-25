@@ -75,9 +75,12 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(self.server.handle(request("tools/list"))["error"]["code"], -32002)
         self.server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"})
         listed = self.server.handle(request("tools/list"))["result"]["tools"]
-        self.assertEqual(len(listed), 11)
+        self.assertEqual(len(listed), 12)
         mission = next(tool for tool in listed if tool["name"] == "mission_status")
         self.assertTrue(mission["annotations"]["readOnlyHint"])
+        self.assertNotIn("market_refresh", {tool["name"] for tool in listed})
+        market = next(tool for tool in listed if tool["name"] == "market_snapshot")
+        self.assertTrue(market["annotations"]["readOnlyHint"])
         self.assertEqual(self.server.handle(request("initialize"))["error"]["code"], -32602)
 
     def test_notifications_cannot_execute_and_have_no_response(self):

@@ -88,6 +88,9 @@ internal corruption, not a rewrite by someone controlling the complete database.
 ## Explicit limits and remaining work
 
 - Paper only. No signing, funded operation, withdrawal or live exchange adapter.
+- Optional [public quote collection](TRADING_MARKET_DATA.md) binds market-only
+  paper fills to the recorded ask/bid and bounded displayed size. Legacy sessions
+  without this policy retain caller-supplied synthetic references.
 - Snapshot-only market/limit GTC fills; no depth, queue, partial-fill generation,
   latency simulation or later matching of resting orders. Partial receipts are
   handled by the runtime and covered by adapter-ingestion tests.

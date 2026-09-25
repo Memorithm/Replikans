@@ -70,6 +70,7 @@ TOOLS = [
     tool("execution_reconcile", "Query venue receipts and persist them; absence never authorizes resubmission.", ID),
     tool("account_snapshot", "Read exact balances, fills and unresolved recovery identities.", obj(), True),
     tool("mission_status", "Read immutable operator objective, exact closed-cycle net quote results and entry stop/budget state. No unrealized valuation or profit guarantee.", obj(), True),
+    tool("protection_status", "Read immutable liquidation loss/drawdown policy and current observed bid valuation; no protection mutation authority.", obj(), True),
     tool("market_snapshot", "Read the latest fresh runtime-collected bid/ask, exact order references and snapshot identity. No price input or refresh authority.", obj(), True),
     tool("session_export", "Export journal decisions and receipts. Bounded response; no key material.", obj(), True),
 ]
@@ -290,6 +291,7 @@ class Server:
                       "execution_reconcile": "reconcile", "account_snapshot": "snapshot",
                       "mission_status": "mission_status",
                       "market_snapshot": "market_snapshot",
+                      "protection_status": "protection_status",
                       "session_export": "export", "instrument_rules": "export", "order_get": "snapshot"}
         forwarded = {} if name in ("instrument_rules", "order_get") else arguments
         value = self.backend.call({"operation": operations[name], **forwarded})

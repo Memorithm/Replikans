@@ -6,6 +6,7 @@
 pub mod market;
 pub mod mission;
 pub mod paper;
+pub mod protection;
 pub use scirust_trader::{execution_v2, financial, orders};
 
 use execution_v2::{
@@ -77,6 +78,8 @@ pub struct Config {
     pub mission: Option<TradingMission>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub market_data: Option<market::MarketDataPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protection: Option<protection::ProtectionPolicy>,
 }
 
 impl Config {
@@ -109,6 +112,9 @@ impl Config {
             mission.validate(self)?;
         }
         if let Some(policy) = &self.market_data {
+            policy.validate(self)?;
+        }
+        if let Some(policy) = &self.protection {
             policy.validate(self)?;
         }
         Ok(())
@@ -155,6 +161,9 @@ pub trait VenueAdapter {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "data")]
 enum Record {
+    ProtectionCheck {
+        now_ms: i64,
+    },
     MarketSnapshot(Box<market::MarketSnapshot>),
     Intent(Box<Intent>),
     Abandon {
@@ -183,6 +192,7 @@ struct State {
     sequence: i64,
     hash: String,
     mission_progress: MissionProgress,
+    protection_progress: protection::ProtectionProgress,
 }
 
 #[derive(Debug, Serialize)]
@@ -236,11 +246,18 @@ impl State {
             sequence: 0,
             hash: digest("", 0, &serde_json::to_string(config)?),
             mission_progress: MissionProgress::default(),
+            protection_progress: protection::ProtectionProgress::default(),
         })
     }
 
     fn apply(&mut self, record: &Record, config: &Config) -> Result<()> {
         match record {
+            Record::ProtectionCheck { now_ms } => {
+                if *now_ms < 0 || config.protection.is_none() {
+                    return Err(Error("invalid protection check".into()));
+                }
+                self.evaluate_protection(config, *now_ms)?;
+            }
             Record::MarketSnapshot(quote) => {
                 let policy = config
                     .market_data
@@ -258,6 +275,7 @@ impl State {
                     ));
                 }
                 self.latest_market = Some(*quote.clone());
+                self.evaluate_protection(config, quote.received_at_ms)?;
             }
             Record::Abandon {
                 client_order_id,
@@ -406,6 +424,7 @@ impl State {
                                 .unwrap_or(SignedAmount::ZERO),
                             stop,
                         )?;
+                        self.evaluate_protection(config, value.received_at_ms)?;
                     }
                 }
             }
@@ -487,6 +506,9 @@ impl State {
     }
 
     fn mission_block(&self, mission: &TradingMission, now_ms: i64) -> Option<String> {
+        if let Some(reason) = &self.protection_progress.stopped {
+            return Some(reason.clone());
+        }
         if let Some(reason) = self.mission_progress.stopped {
             return Some(reason.code().into());
         }
@@ -528,6 +550,7 @@ impl State {
         if let Some(reason) = self.mission_block(mission, now_ms) {
             return Err(Error(format!("mission blocks new buys: {reason}")));
         }
+        self.authorize_protection_buy(config, intent, now_ms, excluding)?;
         let mut total = self
             .mission_progress
             .buy_spend

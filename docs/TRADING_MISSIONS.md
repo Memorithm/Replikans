@@ -58,11 +58,13 @@ The model has no tool to create, approve or revise this operator policy.
 - Ambiguous runtime orders block new mission buys pending reconciliation. A
   non-quote fee is retained in the balance ledger, flags
   `quote_accounting_complete=false` and stops new buys; no fee conversion is guessed.
-- Mission stops do not cancel resting orders or submit liquidation orders by
+- Without the optional [protection policy and guard](TRADING_PROTECTION.md),
+  mission stops do not cancel resting orders or submit liquidation orders by
   themselves. The agent can abandon undispatched entries, request cancellation,
   or propose inventory exits. Existing externally accepted orders can still fill.
 
-The report intentionally separates `quote_cash_flow` (which includes cash spent
+The optional protection report supplies bid-liquidation valuation separately.
+The mission report intentionally separates `quote_cash_flow` (which includes cash spent
 on open inventory) from `completed_cycle_pnl`. It does not value open inventory,
 electricity, model costs, transfers, taxes or currencies. Without configured
 public collection, source prices remain asserted paper references. With collection,
@@ -127,12 +129,13 @@ can leave inventory or orders open; it is not represented as mission completion.
    streaming sequence recovery and exchange-origin freshness remain open.
 2. Feasibility/counterproposal based on qualified strategy evidence and explicit
    capital, horizon, fees and liquidity assumptions; a target alone is not evidence.
-3. Mark-to-market equity, open-position loss/drawdown, operating costs and a
-   qualified partial-lot realized-PnL convention, including fee asset conversions.
+3. [Observed bid-liquidation loss/drawdown and runtime exits](TRADING_PROTECTION.md)
+   now have paper qualification. Operating costs, a qualified partial-lot realized
+   PnL convention, fee conversions and deeper liquidity remain open.
 4. One operator-selected exchange: native instrument rules, private stream,
    submit/cancel/query, actual fee receipts and crash/reconnection qualification.
-5. Runtime-owned exits and order cancellation independent of model availability;
-   entry stops alone cannot protect an open position during a model failure.
+5. Qualify the independent protection worker for deployment, outages and exit
+   liquidity; its full-position paper exits cannot guarantee a maximum loss.
 6. Versioned experiment recovery resolution, trusted-feed refresh, long-running
    service deployment via RemoteOps and retained real-model evaluation evidence.
 7. Only after those gates: bounded funded qualification and measured net results.

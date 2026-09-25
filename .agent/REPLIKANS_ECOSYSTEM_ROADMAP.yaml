@@ -206,7 +206,9 @@ agent_operating_protocol:
     allowed.
 
 trading_mission_program_2026_09_25:
-  status: implemented_pending_exact_head_ci
+  status: merged_exact_head_ci_green
+  merge_revision: 30f4805ab9218ae755d00d47461db661170fbee6
+  ci_run: https://github.com/Memorithm/Replikans/actions/runs/36185728215
   pull_request: https://github.com/Memorithm/Replikans/pull/41
   candidate_revision: e58cdfc367286be20bff2cc69a32364800ae2cfb
   source_scirust_revision: 8f597e2edbe281b01cfa30a99b1a25d57c32fb70

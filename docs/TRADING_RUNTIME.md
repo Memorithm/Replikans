@@ -95,11 +95,14 @@ internal corruption, not a rewrite by someone controlling the complete database.
 - No amend command; no automatic clearing of contradictory reconciliation state.
 - Conservative full reservation until terminal status may reject an otherwise
   affordable order after a partial fill; no optimistic reserve release.
-- Balances and fills are exact; FIFO cost basis, realized/unrealized PnL and
-  operating-cost ingestion are subsequent ledger capabilities.
+- Balances and fills are exact. Optional [missions](TRADING_MISSIONS.md) add net
+  quote results for fully closed spot cycles, lifetime buy budgets and entry
+  stops. FIFO/partial-lot PnL, unrealized valuation and operating costs remain open.
 - The Rust binary retains its JSON-lines protocol. An optional strict MCP stdio
   bridge is documented in [TRADING_MCP.md](TRADING_MCP.md); it delegates financial
-  actions to this binary. Model client and context collection remain future work.
+  actions to this binary. A [local model client](TRADING_LOCAL_AGENT.md) and bounded
+  [mission supervisor](TRADING_MISSIONS.md) are available for paper experiments;
+  external context/feed collection remains future work.
 - Replay is O(journal size), capped at one million records and one MiB per record.
   Checkpoints/compaction require a versioned migration before increasing scale.
 - No comparative performance or profitability claim.

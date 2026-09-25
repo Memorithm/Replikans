@@ -3,6 +3,7 @@
 //! network attempts are claimed durably before any adapter call.
 #![forbid(unsafe_code)]
 
+pub mod mission;
 pub mod paper;
 pub use scirust_trader::{execution_v2, financial, orders};
 
@@ -14,6 +15,7 @@ use financial::{
     ExactInstrumentRules, ExactOrderRequest, ExactOrderType, NonNegativeMoney, Quantity,
     ReferencePrice, SignedAmount, validate_order,
 };
+use mission::{MissionProgress, MissionReport, MissionStop, TradingMission};
 use orders::Side;
 use rusqlite::{Connection, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
@@ -69,6 +71,9 @@ pub struct Config {
     /// Flat quote-asset fee used by the deterministic paper adapter and reserved
     /// before send. It is not represented as an exchange fee schedule.
     pub paper_quote_fee: NonNegativeMoney,
+    /// Optional operator mandate. Omission preserves the legacy journal hash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mission: Option<TradingMission>,
 }
 
 impl Config {
@@ -96,6 +101,9 @@ impl Config {
             .any(|(asset, value)| asset.trim().is_empty() || value.is_negative())
         {
             return Err(Error("invalid opening balance".into()));
+        }
+        if let Some(mission) = &self.mission {
+            mission.validate(self)?;
         }
         Ok(())
     }
@@ -163,6 +171,7 @@ struct State {
     balances: BTreeMap<String, SignedAmount>,
     sequence: i64,
     hash: String,
+    mission_progress: MissionProgress,
 }
 
 #[derive(Debug, Serialize)]
@@ -213,6 +222,7 @@ impl State {
             balances: config.initial_balances.clone(),
             sequence: 0,
             hash: digest("", 0, &serde_json::to_string(config)?),
+            mission_progress: MissionProgress::default(),
         })
     }
 
@@ -329,6 +339,37 @@ impl State {
                         fee_asset,
                         SignedAmount::ZERO.checked_sub(*fee_amount)?,
                     )?;
+                    if let Some(mission) = &config.mission {
+                        let quote_fee = if fee_asset == &rules.quote_asset {
+                            *fee_amount
+                        } else {
+                            SignedAmount::ZERO
+                        };
+                        let buy_spend = if intent.request.side == Side::Buy {
+                            // Rebates never replenish the gross purchase budget.
+                            notional.checked_add(quote_fee.max(SignedAmount::ZERO))?
+                        } else {
+                            SignedAmount::ZERO
+                        };
+                        let stop = if fee_asset != &rules.quote_asset {
+                            Some(MissionStop::UnsupportedFeeAsset)
+                        } else if self.balances.values().any(|v| v.is_negative()) {
+                            Some(MissionStop::BalanceDeficit)
+                        } else {
+                            None
+                        };
+                        self.mission_progress.observe(
+                            mission,
+                            quote.checked_sub(quote_fee)?,
+                            buy_spend,
+                            quote_fee,
+                            self.balances
+                                .get(&rules.base_asset)
+                                .copied()
+                                .unwrap_or(SignedAmount::ZERO),
+                            stop,
+                        )?;
+                    }
                 }
             }
         }
@@ -356,6 +397,84 @@ impl State {
             }
         }
         Ok(available)
+    }
+
+    fn mission_reservations(
+        &self,
+        config: &Config,
+        excluding: Option<&str>,
+    ) -> Result<SignedAmount> {
+        let mut reserved = SignedAmount::ZERO;
+        for (id, order) in &self.book.orders {
+            if order.status.is_terminal() || excluding == Some(id.as_str()) {
+                continue;
+            }
+            let intent = self
+                .intents
+                .get(id)
+                .ok_or_else(|| Error("missing intent".into()))?;
+            if intent.request.side == Side::Buy {
+                for amount in requirements(intent, config)?.values() {
+                    reserved = reserved.checked_add(*amount)?;
+                }
+            }
+        }
+        Ok(reserved)
+    }
+
+    fn mission_block(&self, mission: &TradingMission, now_ms: i64) -> Option<String> {
+        if let Some(reason) = self.mission_progress.stopped {
+            return Some(reason.code().into());
+        }
+        if now_ms < mission.starts_at_ms {
+            return Some("mission_not_started".into());
+        }
+        if now_ms >= mission.expires_at_ms {
+            return Some("mission_expired".into());
+        }
+        if self.book.orders.iter().any(|(id, order)| {
+            self.dispatched.contains(id)
+                && (order.status == ExecutionStatusV2::PendingSubmit
+                    || order.status.is_ambiguous()
+                    || matches!(
+                        order.status,
+                        ExecutionStatusV2::PendingCancel | ExecutionStatusV2::PendingAmend
+                    ))
+        }) {
+            return Some("reconciliation_required".into());
+        }
+        None
+    }
+
+    fn authorize_mission_buy(
+        &self,
+        intent: &Intent,
+        config: &Config,
+        now_ms: i64,
+        excluding: Option<&str>,
+    ) -> Result<()> {
+        let Some(mission) = &config.mission else {
+            return Ok(());
+        };
+        if intent.request.side != Side::Buy {
+            // Inventory-reducing sales retain the ordinary inventory/expiry/rule
+            // checks, and remain possible after the mission stops new exposure.
+            return Ok(());
+        }
+        if let Some(reason) = self.mission_block(mission, now_ms) {
+            return Err(Error(format!("mission blocks new buys: {reason}")));
+        }
+        let mut total = self
+            .mission_progress
+            .buy_spend
+            .checked_add(self.mission_reservations(config, excluding)?)?;
+        for amount in requirements(intent, config)?.values() {
+            total = total.checked_add(*amount)?;
+        }
+        if total > SignedAmount::from(mission.max_buy_spend) {
+            return Err(Error("mission cumulative buy budget exceeded".into()));
+        }
+        Ok(())
     }
 }
 
@@ -517,6 +636,39 @@ impl Runtime {
         })
     }
 
+    /// Read authoritative mission progress. This cannot change operator policy.
+    pub fn mission_report(&mut self, now_ms: i64) -> Result<Option<MissionReport>> {
+        let Some(mission) = &self.config.mission else {
+            return Ok(None);
+        };
+        let transaction = self.connection.transaction()?;
+        let state = replay(&transaction, &self.config)?;
+        let reserved = state.mission_reservations(&self.config, None)?;
+        let remaining = SignedAmount::from(mission.max_buy_spend)
+            .checked_sub(state.mission_progress.buy_spend)?
+            .checked_sub(reserved)?;
+        let blocked = state
+            .mission_block(mission, now_ms)
+            .or_else(|| (remaining <= SignedAmount::ZERO).then(|| "buy_budget_exhausted".into()));
+        let rules = self
+            .config
+            .instruments
+            .get(&mission.instrument_id)
+            .ok_or_else(|| Error("missing mission instrument".into()))?;
+        Ok(Some(MissionReport {
+            runtime_journal_hash: state.hash,
+            runtime_journal_sequence: state.sequence,
+            policy: mission.clone(),
+            quote_asset: rules.quote_asset.clone(),
+            progress: state.mission_progress,
+            reserved_buy_spend: reserved,
+            remaining_buy_spend: remaining,
+            new_buys_blocked_by: blocked,
+            valuation_basis: "quote cash flows at fully closed spot cycles; no unrealized valuation or operating costs",
+            profitability_guaranteed: false,
+        }))
+    }
+
     /// Prepare without sending. A replay of the identical intent is idempotent;
     /// reusing any identity with changed content is an error.
     pub fn prepare(&mut self, intent: Intent, now_ms: i64) -> Result<()> {
@@ -533,6 +685,7 @@ impl Runtime {
             ));
         }
         authorize(&intent, &self.config, now_ms)?;
+        state.authorize_mission_buy(&intent, &self.config, now_ms, None)?;
         if state.balances.values().any(|balance| balance.is_negative()) {
             return Err(Error("unresolved account deficit".into()));
         }
@@ -609,6 +762,7 @@ impl Runtime {
             .cloned()
             .ok_or_else(|| Error("unknown intent".into()))?;
         authorize(&intent, &self.config, now_ms)?;
+        state.authorize_mission_buy(&intent, &self.config, now_ms, Some(id))?;
         if state
             .available(&self.config)?
             .values()

@@ -14,6 +14,235 @@ use tempfile::TempDir;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
+fn mission_config() -> Result<Config> {
+    let mut c = config()?;
+    c.mission = Some(replikan_trading::mission::TradingMission {
+        schema_version: 1,
+        mission_id: "paper-mission-test".into(),
+        objective: "Synthetic acceptance only: aim for 8 QUOTE net".into(),
+        instrument_id: "TEST-QUOTE".into(),
+        starts_at_ms: 1000,
+        expires_at_ms: 2000,
+        target_net_profit: NonNegativeMoney::parse("8")?,
+        max_net_realized_loss: NonNegativeMoney::parse("5")?,
+        max_buy_spend: NonNegativeMoney::parse("303")?,
+    });
+    Ok(c)
+}
+
+fn mission_progress(runtime: &mut Runtime) -> TestResultProgress {
+    runtime
+        .mission_report(1001)?
+        .map(|r| r.progress)
+        .ok_or_else(|| "missing mission".into())
+}
+type TestResultProgress =
+    std::result::Result<replikan_trading::mission::MissionProgress, Box<dyn std::error::Error>>;
+
+#[test]
+fn mission_net_result_replays_and_stops_new_buys_at_exact_target() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = mission_config()?;
+    let path = directory.path().join("runtime.sqlite");
+    let mut runtime = Runtime::open(&path, c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c.clone())?;
+    for (id, side, price) in [("buy", Side::Buy, "100"), ("sell", Side::Sell, "110")] {
+        runtime.prepare(intent(id, side, price)?, 1000)?;
+        runtime.dispatch(id, &mut venue, 1000)?;
+    }
+    // Independent cash identity: -100 -1 +110 -1 = 8, not gross spread 10.
+    let before = mission_progress(&mut runtime)?;
+    assert_eq!(before.completed_cycle_pnl, SignedAmount::parse("8")?);
+    assert_eq!(before.quote_fees, SignedAmount::parse("2")?);
+    assert_eq!(before.buy_spend, SignedAmount::parse("101")?);
+    assert_eq!(before.completed_cycles, 1);
+    assert_eq!(
+        before.stopped,
+        Some(replikan_trading::mission::MissionStop::TargetReached)
+    );
+    runtime.reconcile("sell", &mut venue, 1001)?;
+    assert_eq!(mission_progress(&mut runtime)?, before);
+    drop(runtime);
+    let mut runtime = Runtime::open(&path, c)?;
+    assert_eq!(mission_progress(&mut runtime)?, before);
+    let sequence = runtime.snapshot()?.journal_sequence;
+    assert!(
+        runtime
+            .prepare(intent("extra", Side::Buy, "100")?, 1001)
+            .is_err()
+    );
+    assert_eq!(runtime.snapshot()?.journal_sequence, sequence);
+    Ok(())
+}
+
+#[test]
+fn mission_partial_sales_are_not_reported_as_closed_cycle_profit() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = mission_config()?;
+    let mut runtime = Runtime::open(directory.path().join("runtime.sqlite"), c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c)?;
+    let mut buy = intent("buy-two", Side::Buy, "100")?;
+    buy.request.quantity = Quantity::parse("2")?;
+    runtime.prepare(buy, 1000)?;
+    runtime.dispatch("buy-two", &mut venue, 1000)?;
+    runtime.prepare(intent("sell-one", Side::Sell, "110")?, 1000)?;
+    runtime.dispatch("sell-one", &mut venue, 1000)?;
+    let partial = mission_progress(&mut runtime)?;
+    assert_eq!(partial.base_inventory, SignedAmount::parse("1")?);
+    assert_eq!(partial.quote_cash_flow, SignedAmount::parse("-92")?);
+    assert_eq!(partial.completed_cycle_pnl, SignedAmount::ZERO);
+    assert_eq!(partial.completed_cycles, 0);
+    runtime.prepare(intent("sell-two", Side::Sell, "120")?, 1001)?;
+    runtime.dispatch("sell-two", &mut venue, 1001)?;
+    // -201 +109 +119 = 27, inclusive of three fills' fees.
+    assert_eq!(
+        mission_progress(&mut runtime)?.completed_cycle_pnl,
+        SignedAmount::parse("27")?
+    );
+    Ok(())
+}
+
+#[test]
+fn mission_rechecks_prepared_buy_after_another_order_reaches_goal() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = mission_config()?;
+    let path = directory.path().join("runtime.sqlite");
+    let mut first = Runtime::open(&path, c.clone())?;
+    let mut second = Runtime::open(&path, c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c)?;
+    first.prepare(intent("later", Side::Buy, "100")?, 1000)?;
+    first.prepare(intent("buy", Side::Buy, "100")?, 1000)?;
+    first.dispatch("buy", &mut venue, 1000)?;
+    first.prepare(intent("sell", Side::Sell, "110")?, 1000)?;
+    first.dispatch("sell", &mut venue, 1000)?;
+    assert!(second.dispatch("later", &mut venue, 1001).is_err());
+    assert!(venue.query("later", 1001)?.is_none());
+    second.abandon("later", "mission finished before dispatch", 1001)?;
+    assert_eq!(
+        second
+            .mission_report(1001)?
+            .ok_or("missing report")?
+            .reserved_buy_spend,
+        SignedAmount::ZERO
+    );
+    Ok(())
+}
+
+#[test]
+fn mission_budget_includes_fees_reservations_and_is_not_refilled_by_sales() -> TestResult {
+    let directory = TempDir::new()?;
+    let mut c = mission_config()?;
+    c.mission.as_mut().ok_or("missing policy")?.max_buy_spend = NonNegativeMoney::parse("101")?;
+    let path = directory.path().join("runtime.sqlite");
+    let mut first = Runtime::open(&path, c.clone())?;
+    let mut second = Runtime::open(&path, c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c)?;
+    first.prepare(intent("buy", Side::Buy, "100")?, 1000)?;
+    assert!(
+        second
+            .prepare(intent("competing", Side::Buy, "100")?, 1000)
+            .is_err()
+    );
+    assert_eq!(
+        second
+            .mission_report(1000)?
+            .ok_or("missing report")?
+            .remaining_buy_spend,
+        SignedAmount::ZERO
+    );
+    // The already-reserved order is not counted twice at dispatch.
+    first.dispatch("buy", &mut venue, 1000)?;
+    first.prepare(intent("sell", Side::Sell, "103")?, 1000)?;
+    first.dispatch("sell", &mut venue, 1000)?;
+    assert_eq!(
+        mission_progress(&mut first)?.completed_cycle_pnl,
+        SignedAmount::parse("1")?
+    );
+    assert!(
+        second
+            .prepare(intent("recycle", Side::Buy, "100")?, 1001)
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+fn mission_loss_stop_and_deadline_do_not_prevent_inventory_exit() -> TestResult {
+    let directory = TempDir::new()?;
+    let mut c = mission_config()?;
+    c.mission.as_mut().ok_or("missing policy")?.expires_at_ms = 1001;
+    let mut runtime = Runtime::open(directory.path().join("runtime.sqlite"), c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c)?;
+    assert!(
+        runtime
+            .prepare(intent("too-early", Side::Buy, "100")?, 999)
+            .is_err()
+    );
+    runtime.prepare(intent("buy", Side::Buy, "100")?, 1000)?;
+    runtime.dispatch("buy", &mut venue, 1000)?;
+    assert!(
+        runtime
+            .prepare(intent("late", Side::Buy, "100")?, 1001)
+            .is_err()
+    );
+    runtime.prepare(intent("exit", Side::Sell, "97")?, 1001)?;
+    runtime.dispatch("exit", &mut venue, 1001)?;
+    let report = mission_progress(&mut runtime)?;
+    assert_eq!(report.completed_cycle_pnl, SignedAmount::parse("-5")?);
+    assert_eq!(
+        report.stopped,
+        Some(replikan_trading::mission::MissionStop::RealizedLossLimit)
+    );
+    Ok(())
+}
+
+#[test]
+fn mission_unknown_submission_blocks_new_exposure_until_reconciled() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = mission_config()?;
+    let mut runtime = Runtime::open(directory.path().join("runtime.sqlite"), c.clone())?;
+    let mut venue = LoseReply(PaperVenue::open(directory.path().join("venue.sqlite"), c)?);
+    runtime.prepare(intent("lost", Side::Buy, "100")?, 1000)?;
+    assert!(runtime.dispatch("lost", &mut venue, 1000).is_err());
+    assert!(
+        runtime
+            .prepare(intent("extra", Side::Buy, "100")?, 1001)
+            .is_err()
+    );
+    assert_eq!(
+        runtime
+            .mission_report(1001)?
+            .ok_or("missing report")?
+            .new_buys_blocked_by
+            .as_deref(),
+        Some("reconciliation_required")
+    );
+    runtime.reconcile("lost", &mut venue, 1001)?;
+    runtime.prepare(intent("extra", Side::Buy, "100")?, 1001)?;
+    assert_eq!(mission_progress(&mut runtime)?.fills, 1);
+    Ok(())
+}
+
+#[test]
+fn mission_rejects_unknown_cost_basis_and_implicit_policy_migration() -> TestResult {
+    let directory = TempDir::new()?;
+    let mut c = mission_config()?;
+    c.initial_balances
+        .insert("TEST".into(), SignedAmount::parse("1")?);
+    assert!(Runtime::open(directory.path().join("invalid.sqlite"), c).is_err());
+    let c = mission_config()?;
+    let path = directory.path().join("valid.sqlite");
+    drop(Runtime::open(&path, c.clone())?);
+    let mut changed = c;
+    changed
+        .mission
+        .as_mut()
+        .ok_or("missing policy")?
+        .target_net_profit = NonNegativeMoney::parse("9")?;
+    assert!(Runtime::open(&path, changed).is_err());
+    Ok(())
+}
+
 fn config() -> Result<Config> {
     let rules = ExactInstrumentRules {
         venue: "paper".into(),
@@ -39,6 +268,7 @@ fn config() -> Result<Config> {
         max_open_orders: 5,
         max_intent_age_ms: 1000,
         paper_quote_fee: NonNegativeMoney::parse("1")?,
+        mission: None,
     })
 }
 

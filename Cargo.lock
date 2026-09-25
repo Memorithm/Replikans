@@ -1078,6 +1078,11 @@ name = "replikan-cli"
 version = "0.1.0"
 dependencies = [
  "replikan-core",
+ "replikan-decision-ledger",
+ "replikan-economics",
+ "replikan-ledger",
+ "replikan-replication",
+ "replikan-survival",
 ]
 
 [[package]]
@@ -1110,6 +1115,7 @@ dependencies = [
  "replikan-mining-pipeline",
  "replikan-network-feeds",
  "replikan-opportunities",
+ "replikan-replication",
  "replikan-resource",
  "replikan-survival",
 ]

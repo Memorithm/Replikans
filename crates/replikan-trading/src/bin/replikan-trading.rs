@@ -8,6 +8,7 @@ use std::io::{BufRead, Write};
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Command {
     Capabilities,
+    MissionStatus,
     Prepare {
         intent: Box<Intent>,
     },
@@ -40,10 +41,13 @@ fn execute(runtime: &mut Runtime, venue: &mut PaperVenue, command: Command) -> R
     match command {
         Command::Capabilities => Ok(
             json!({"schema_version":1,"mode":"paper","protocol":"json-lines",
-            "operations":["capabilities","prepare","abandon","dispatch","reconcile","cancel","snapshot","export"],
+            "operations":["capabilities","mission_status","prepare","abandon","dispatch","reconcile","cancel","snapshot","export"],
             "order_types":["Market","Limit"],"time_in_force":["Gtc"],"live":false,"amend":false,
             "fill_model":"snapshot-only, full marketable fills, flat configured quote fee"}),
         ),
+        Command::MissionStatus => {
+            Ok(json!({"mode":"paper", "mission": runtime.mission_report(now)?}))
+        }
         Command::Prepare { intent } => {
             runtime.prepare(*intent, now)?;
             Ok(json!({"prepared":true}))

@@ -51,6 +51,7 @@ Only protocol responses go to stdout. The client must send `initialize`, then
 | `order_cancel` | Request venue cancellation, not reversal of fills |
 | `execution_reconcile` | Query and ingest authoritative paper receipts |
 | `account_snapshot` | Exact balances, orders, fills and recovery list |
+| `mission_status` | Immutable operator mandate, closed-cycle quote results, remaining buy budget and entry stops; `null` for legacy sessions |
 | `session_export` | Complete bounded journal evidence |
 
 Tool arguments use strict nested JSON schemas: financial values are plain decimal

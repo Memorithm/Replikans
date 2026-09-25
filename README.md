@@ -49,7 +49,7 @@ cargo test --workspace --exclude replikan-trading
 cargo run -p replikan-cli -- demo
 ```
 
-Paper trading:
+Paper trading (including [bounded goal-driven missions](docs/TRADING_MISSIONS.md)):
 
 ```bash
 cargo test -p replikan-trading

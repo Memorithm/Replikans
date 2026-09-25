@@ -42,8 +42,9 @@ python3 scripts/trading_agent.py --experiment /absolute/session/experiment.sqlit
   --max-steps 16
 ```
 
-There is no repeated unattended schedule in this command. It executes one bounded
-episode and exits. A model may finish without acting; that decision is retained.
+The `run` command executes one bounded episode and exits. For repeated bounded
+episodes under an immutable Rust operator mandate, use
+[`supervise`](TRADING_MISSIONS.md). A model may finish without acting; that decision is retained.
 Model output is one validated JSON decision (tool call plus brief explicit
 rationale, or finish). A request for an unavailable tool fails and is recorded.
 Temperature 0 does not promise deterministic regeneration of model responses.
@@ -94,7 +95,8 @@ retained even when they reflect an ambiguous external outcome.
 
 ## Limits
 
-This module adds a local provider and evidence loop, not financial PnL accounting,
+This module adds a local provider and evidence loop. Optional Rust missions add
+fully closed-cycle quote accounting; they do not provide full financial PnL accounting,
 external news/weather collectors, live market feeds, a live exchange adapter,
 strategy qualification or competitor benchmarks. Model identity is observed at
 episode start; do not modify the serving model during an episode. HTTP uses a

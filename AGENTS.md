@@ -23,6 +23,15 @@ SoulSystem may later provide reasoning; ElasticXxx may adapt compute resources; 
 
 Required CI must be green on the exact PR head before merge.
 
+## Trading mission continuation
+
+For trading mission, agent supervision or execution-policy work, also read
+`docs/TRADING_MISSIONS.md`. It records the supported paper accounting scope and
+remaining live delivery gates. Keep mission limits in the deterministic Rust
+runtime, never in model-only instructions. Preserve pinned SciRust exact contracts.
+Paper fixtures and scripted-model acceptance must not be reported as real revenue,
+real-model qualification or live exchange readiness.
+
 Reread the roadmap at every session start, before wallet/signing/execution/replication changes, before ecosystem integrations, and before relevant PR/merge decisions.
 
 Do not merge the roadmap itself into `main` unless the user explicitly requests it.

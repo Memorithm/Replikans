@@ -14,6 +14,219 @@ use tempfile::TempDir;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
+fn market_config() -> Result<Config> {
+    let mut c = config()?;
+    c.market_data = Some(replikan_trading::market::MarketDataPolicy {
+        instrument_id: "TEST-QUOTE".into(),
+        symbol: "TESTQUOTE".into(),
+        max_age_ms: 5000,
+        min_refresh_interval_ms: 1000,
+    });
+    Ok(c)
+}
+
+struct QuoteTransport {
+    body: String,
+    status: u16,
+}
+impl replikan_market_http::HttpTransport for QuoteTransport {
+    fn get(
+        &self,
+        endpoint: &str,
+    ) -> std::result::Result<replikan_market_http::HttpResponse, replikan_market_http::TransportError>
+    {
+        assert_eq!(
+            endpoint,
+            "https://data-api.binance.vision/api/v3/ticker/bookTicker?symbol=TESTQUOTE&symbolStatus=TRADING"
+        );
+        Ok(replikan_market_http::HttpResponse {
+            status: self.status,
+            body: self.body.clone(),
+        })
+    }
+}
+
+fn collected_quote(
+    c: &Config,
+    start: i64,
+    bid: &str,
+    ask: &str,
+) -> Result<replikan_trading::market::MarketSnapshot> {
+    let policy = c
+        .market_data
+        .as_ref()
+        .ok_or_else(|| Error("missing test policy".into()))?;
+    let body = serde_json::json!({"symbol":"TESTQUOTE", "bidPrice":bid, "askPrice":ask, "bidQty":"2", "askQty":"2"}).to_string();
+    let mut time = start;
+    replikan_trading::market::collect(policy, &QuoteTransport { body, status: 200 }, || {
+        let now = time;
+        time += 1;
+        Ok(now)
+    })
+}
+
+fn quoted_intent(
+    c: &Config,
+    quote: &replikan_trading::market::MarketSnapshot,
+    id: &str,
+    side: Side,
+) -> Result<Intent> {
+    let mut i = intent(id, side, "100")?;
+    i.market_snapshot_id = Some(quote.id().into());
+    i.reference = quote.reference(
+        c.market_data
+            .as_ref()
+            .ok_or_else(|| Error("missing policy".into()))?,
+        side,
+    )?;
+    i.created_at_ms = quote.received_at_ms;
+    i.expires_at_ms = quote.received_at_ms + 1000;
+    Ok(i)
+}
+
+#[test]
+fn collected_bid_ask_bind_orders_and_survive_replay_without_model_prices() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = market_config()?;
+    let quote = collected_quote(&c, 1000, "99", "101")?;
+    let path = directory.path().join("runtime.sqlite");
+    let mut runtime = Runtime::open(&path, c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c.clone())?;
+    assert!(
+        runtime
+            .prepare(intent("invented", Side::Buy, "1")?, 1001)
+            .is_err()
+    );
+    runtime.record_market_snapshot(quote.clone())?;
+    let buy = quoted_intent(&c, &quote, "buy", Side::Buy)?;
+    let mut forged = buy.clone();
+    forged.reference.price = Price::parse("1")?;
+    assert!(runtime.prepare(forged, 1001).is_err());
+    runtime.prepare(buy, 1001)?;
+    runtime.dispatch("buy", &mut venue, 1001)?;
+    runtime.prepare(quoted_intent(&c, &quote, "sell", Side::Sell)?, 1001)?;
+    runtime.dispatch("sell", &mut venue, 1001)?;
+    // Buying at ask and selling at bid incurs the spread and two quote fees.
+    assert_eq!(
+        runtime.snapshot()?.balances["QUOTE"],
+        SignedAmount::parse("996")?
+    );
+    let market = runtime.market_snapshot(1001)?;
+    assert_eq!(market["buy_side_consumed"], true);
+    assert_eq!(market["sell_side_consumed"], true);
+    drop(runtime);
+    let mut runtime = Runtime::open(path, c.clone())?;
+    assert_eq!(runtime.market_snapshot(1001)?, market);
+    assert!(
+        runtime
+            .prepare(quoted_intent(&c, &quote, "reuse", Side::Buy)?, 1001)
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+fn quote_refresh_invalidates_old_prepared_intent_and_depth_is_bounded() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = market_config()?;
+    let mut runtime = Runtime::open(directory.path().join("runtime.sqlite"), c.clone())?;
+    let mut venue = PaperVenue::open(directory.path().join("venue.sqlite"), c.clone())?;
+    let quote = collected_quote(&c, 1000, "99", "101")?;
+    runtime.record_market_snapshot(quote.clone())?;
+    let mut too_large = quoted_intent(&c, &quote, "large", Side::Buy)?;
+    too_large.request.quantity = Quantity::parse("3")?;
+    assert!(runtime.prepare(too_large, 1001).is_err());
+    runtime.prepare(quoted_intent(&c, &quote, "old", Side::Buy)?, 1001)?;
+    assert!(
+        runtime
+            .record_market_snapshot(collected_quote(&c, 1000, "99", "101")?)
+            .is_err()
+    );
+    runtime.record_market_snapshot(collected_quote(&c, 2001, "100", "102")?)?;
+    assert!(runtime.dispatch("old", &mut venue, 2001).is_err());
+    assert!(venue.query("old", 2001)?.is_none());
+    assert!(runtime.market_snapshot(2001).is_err()); // receipt is 2002
+    assert!(runtime.market_snapshot(7002).is_err()); // age starts before HTTP
+    runtime.abandon("old", "market reference superseded", 2002)?;
+    Ok(())
+}
+
+#[test]
+fn quote_parser_rejects_wrong_identity_crossed_empty_nondecimal_and_http_failures() -> TestResult {
+    let c = market_config()?;
+    let policy = c.market_data.as_ref().ok_or("missing policy")?;
+    let valid = serde_json::json!({"symbol":"TESTQUOTE","bidPrice":"99","bidQty":"2","askPrice":"101","askQty":"2"});
+    for (field, bad) in [
+        ("symbol", serde_json::json!("OTHER")),
+        ("bidPrice", serde_json::json!("102")),
+        ("askQty", serde_json::json!("0")),
+        ("bidPrice", serde_json::json!(99.0)),
+    ] {
+        let mut body = valid.clone();
+        body[field] = bad;
+        assert!(
+            replikan_trading::market::collect(
+                policy,
+                &QuoteTransport {
+                    body: body.to_string(),
+                    status: 200
+                },
+                || Ok(1000)
+            )
+            .is_err()
+        );
+    }
+    for status in [301, 403, 429, 500] {
+        assert!(
+            replikan_trading::market::collect(
+                policy,
+                &QuoteTransport {
+                    body: valid.to_string(),
+                    status
+                },
+                || Ok(1000)
+            )
+            .is_err()
+        );
+    }
+    let mut clock = 0;
+    assert!(
+        replikan_trading::market::collect(
+            policy,
+            &QuoteTransport {
+                body: valid.to_string(),
+                status: 200
+            },
+            || {
+                clock += 5000;
+                Ok(clock)
+            }
+        )
+        .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+fn quote_content_tamper_and_symbol_policy_injection_are_rejected() -> TestResult {
+    let directory = TempDir::new()?;
+    let c = market_config()?;
+    let quote = collected_quote(&c, 1000, "99", "101")?;
+    let mut runtime = Runtime::open(directory.path().join("runtime.sqlite"), c.clone())?;
+    let mut changed = serde_json::to_value(&quote)?;
+    changed["ask"] = serde_json::json!("1");
+    assert!(
+        runtime
+            .record_market_snapshot(serde_json::from_value(changed)?)
+            .is_err()
+    );
+    assert_eq!(runtime.snapshot()?.journal_sequence, 0);
+    let mut bad = c;
+    bad.market_data.as_mut().ok_or("missing policy")?.symbol = "BTCUSDT&other=1".into();
+    assert!(Runtime::open(directory.path().join("bad.sqlite"), bad).is_err());
+    Ok(())
+}
+
 fn mission_config() -> Result<Config> {
     let mut c = config()?;
     c.mission = Some(replikan_trading::mission::TradingMission {
@@ -269,11 +482,13 @@ fn config() -> Result<Config> {
         max_intent_age_ms: 1000,
         paper_quote_fee: NonNegativeMoney::parse("1")?,
         mission: None,
+        market_data: None,
     })
 }
 
 fn intent(id: &str, side: Side, price: &str) -> Result<Intent> {
     Ok(Intent {
+        market_snapshot_id: None,
         intent_id: format!("intent-{id}"),
         idempotency_key: format!("key-{id}"),
         agent_id: "test-agent".into(),

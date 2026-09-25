@@ -3,6 +3,7 @@
 //! network attempts are claimed durably before any adapter call.
 #![forbid(unsafe_code)]
 
+pub mod market;
 pub mod mission;
 pub mod paper;
 pub use scirust_trader::{execution_v2, financial, orders};
@@ -74,6 +75,8 @@ pub struct Config {
     /// Optional operator mandate. Omission preserves the legacy journal hash.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mission: Option<TradingMission>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub market_data: Option<market::MarketDataPolicy>,
 }
 
 impl Config {
@@ -105,6 +108,9 @@ impl Config {
         if let Some(mission) = &self.mission {
             mission.validate(self)?;
         }
+        if let Some(policy) = &self.market_data {
+            policy.validate(self)?;
+        }
         Ok(())
     }
 }
@@ -112,6 +118,8 @@ impl Config {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Intent {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub market_snapshot_id: Option<String>,
     pub intent_id: String,
     pub idempotency_key: String,
     pub agent_id: String,
@@ -147,6 +155,7 @@ pub trait VenueAdapter {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "data")]
 enum Record {
+    MarketSnapshot(Box<market::MarketSnapshot>),
     Intent(Box<Intent>),
     Abandon {
         client_order_id: String,
@@ -164,6 +173,8 @@ enum Record {
 
 #[derive(Clone)]
 struct State {
+    latest_market: Option<market::MarketSnapshot>,
+    market_claims: BTreeSet<String>,
     book: LifecycleBookV2,
     intents: BTreeMap<String, Intent>,
     dispatched: BTreeSet<String>,
@@ -215,6 +226,8 @@ fn balance_change(
 impl State {
     fn empty(config: &Config) -> Result<Self> {
         Ok(Self {
+            latest_market: None,
+            market_claims: BTreeSet::new(),
             book: domain(LifecycleBookV2::new(&config.venue, &config.account_id))?,
             intents: BTreeMap::new(),
             dispatched: BTreeSet::new(),
@@ -228,6 +241,24 @@ impl State {
 
     fn apply(&mut self, record: &Record, config: &Config) -> Result<()> {
         match record {
+            Record::MarketSnapshot(quote) => {
+                let policy = config
+                    .market_data
+                    .as_ref()
+                    .ok_or_else(|| Error("market collection is not configured".into()))?;
+                quote.validate(policy)?;
+                if self.latest_market.as_ref().is_some_and(|previous| {
+                    previous
+                        .received_at_ms
+                        .checked_add(policy.min_refresh_interval_ms)
+                        .is_none_or(|earliest| quote.request_started_at_ms < earliest)
+                }) {
+                    return Err(Error(
+                        "market observations overlap, regress or exceed refresh cadence".into(),
+                    ));
+                }
+                self.latest_market = Some(*quote.clone());
+            }
             Record::Abandon {
                 client_order_id,
                 reason,
@@ -286,6 +317,12 @@ impl State {
                     return Err(Error(
                         "submission already claimed or no longer pending".into(),
                     ));
+                }
+                if let Some(quote_id) = &self.intents[client_order_id].market_snapshot_id {
+                    let side = self.intents[client_order_id].request.side;
+                    if !self.market_claims.insert(format!("{quote_id}:{side:?}")) {
+                        return Err(Error("snapshot side already consumed by a dispatch".into()));
+                    }
                 }
             }
             Record::Observation {
@@ -420,6 +457,33 @@ impl State {
             }
         }
         Ok(reserved)
+    }
+
+    fn authorize_market(&self, intent: &Intent, config: &Config, now_ms: i64) -> Result<()> {
+        let Some(policy) = &config.market_data else {
+            if intent.market_snapshot_id.is_some() {
+                return Err(Error(
+                    "market snapshot supplied without configured collector".into(),
+                ));
+            }
+            return Ok(());
+        };
+        let quote = self
+            .latest_market
+            .as_ref()
+            .ok_or_else(|| Error("no collected market snapshot".into()))?;
+        quote.validate_at(policy, now_ms)?;
+        if intent.market_snapshot_id.as_deref() != Some(quote.id())
+            || intent.reference != quote.reference(policy, intent.request.side)?
+            || intent.request.order_type != ExactOrderType::Market
+            || intent.request.quantity > quote.capacity(intent.request.side)
+            || self
+                .market_claims
+                .contains(&format!("{}:{:?}", quote.id(), intent.request.side))
+        {
+            return Err(Error("intent must use the current unconsumed quote side, exact reference and available top quantity; market orders only".into()));
+        }
+        Ok(())
     }
 
     fn mission_block(&self, mission: &TradingMission, now_ms: i64) -> Option<String> {
@@ -579,6 +643,70 @@ pub(crate) fn connection(path: &Path) -> Result<Connection> {
 }
 
 impl Runtime {
+    pub fn market_enabled(&self) -> bool {
+        self.config.market_data.is_some()
+    }
+
+    /// Called by trusted collectors; no raw-response import is exposed to MCP.
+    pub fn record_market_snapshot(&mut self, quote: market::MarketSnapshot) -> Result<()> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut state = replay(&transaction, &self.config)?;
+        append(
+            &transaction,
+            &mut state,
+            &self.config,
+            Record::MarketSnapshot(Box::new(quote)),
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn refresh_market(&mut self) -> Result<serde_json::Value> {
+        let policy = self
+            .config
+            .market_data
+            .clone()
+            .ok_or_else(|| Error("public feed is not configured".into()))?;
+        let now = market::now_ms()?;
+        {
+            let transaction = self.connection.transaction()?;
+            let state = replay(&transaction, &self.config)?;
+            if state.latest_market.as_ref().is_some_and(|q| {
+                q.received_at_ms
+                    .checked_add(policy.min_refresh_interval_ms)
+                    .is_none_or(|earliest| now < earliest)
+            }) {
+                return Err(Error("refresh cadence not elapsed".into()));
+            }
+        }
+        let quote = market::collect(&policy, &policy.transport()?, market::now_ms)?;
+        self.record_market_snapshot(quote)?;
+        self.market_snapshot(market::now_ms()?)
+    }
+
+    pub fn market_snapshot(&mut self, now_ms: i64) -> Result<serde_json::Value> {
+        let policy = self
+            .config
+            .market_data
+            .as_ref()
+            .ok_or_else(|| Error("public feed is not configured".into()))?;
+        let transaction = self.connection.transaction()?;
+        let state = replay(&transaction, &self.config)?;
+        let quote = state
+            .latest_market
+            .as_ref()
+            .ok_or_else(|| Error("no collected quote".into()))?;
+        quote.validate_at(policy, now_ms)?;
+        Ok(serde_json::json!({"mode":"paper", "snapshot":quote,
+            "buy_reference":quote.reference(policy, Side::Buy)?,
+            "sell_reference":quote.reference(policy, Side::Sell)?,
+            "buy_side_consumed":state.market_claims.contains(&format!("{}:Buy",quote.id())),
+            "sell_side_consumed":state.market_claims.contains(&format!("{}:Sell",quote.id())),
+            "runtime_journal_hash":state.hash,
+            "exchange_event_timestamp_available":false}))
+    }
     pub fn open(path: impl AsRef<Path>, config: Config) -> Result<Self> {
         config.validate()?;
         let mut connection = connection(path.as_ref())?;
@@ -685,6 +813,7 @@ impl Runtime {
             ));
         }
         authorize(&intent, &self.config, now_ms)?;
+        state.authorize_market(&intent, &self.config, now_ms)?;
         state.authorize_mission_buy(&intent, &self.config, now_ms, None)?;
         if state.balances.values().any(|balance| balance.is_negative()) {
             return Err(Error("unresolved account deficit".into()));
@@ -762,6 +891,7 @@ impl Runtime {
             .cloned()
             .ok_or_else(|| Error("unknown intent".into()))?;
         authorize(&intent, &self.config, now_ms)?;
+        state.authorize_market(&intent, &self.config, now_ms)?;
         state.authorize_mission_buy(&intent, &self.config, now_ms, Some(id))?;
         if state
             .available(&self.config)?

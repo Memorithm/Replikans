@@ -64,8 +64,10 @@ The model has no tool to create, approve or revise this operator policy.
 
 The report intentionally separates `quote_cash_flow` (which includes cash spent
 on open inventory) from `completed_cycle_pnl`. It does not value open inventory,
-electricity, model costs, transfers, taxes or currencies. Source prices remain
-asserted paper references. A synthetic gain is not revenue earned on an exchange.
+electricity, model costs, transfers, taxes or currencies. Without configured
+public collection, source prices remain asserted paper references. With collection,
+the retained provider bid/ask constrains paper fills. Paper gains are not revenue
+earned on an exchange.
 
 ## Run and inspect
 
@@ -120,8 +122,9 @@ can leave inventory or orders open; it is not represented as mission completion.
 
 ## Remaining delivery gates
 
-1. Trusted live market snapshots, causal data validation and immutable source
-   identities; model assertions must not become authoritative live quotes.
+1. [Runtime-collected public bid/ask snapshots](TRADING_MARKET_DATA.md) now bind
+   paper order references to retained provider responses. Historical causal data,
+   streaming sequence recovery and exchange-origin freshness remain open.
 2. Feasibility/counterproposal based on qualified strategy evidence and explicit
    capital, horizon, fees and liquidity assumptions; a target alone is not evidence.
 3. Mark-to-market equity, open-position loss/drawdown, operating costs and a

@@ -102,6 +102,11 @@ impl crate::State {
             .mission_progress
             .base_inventory
             .checked_add(SignedAmount::from(intent.request.quantity))?;
+        let mut pnl = projected.liquidation_pnl(config, now)?;
+        let quote = self
+            .latest_market
+            .as_ref()
+            .ok_or_else(|| Error("missing collected quote".into()))?;
         // Pending buys can still fill; do not spend the same risk budget twice.
         // Full original reservations are deliberately conservative after partial fills.
         for (id, order) in &self.book.orders {
@@ -119,17 +124,14 @@ impl crate::State {
                     .checked_notional(pending.request.quantity)?,
             )
             .checked_add(SignedAmount::from(config.paper_quote_fee))?;
-            projected.mission_progress.quote_cash_flow = projected
-                .mission_progress
-                .quote_cash_flow
-                .checked_sub(cost)?;
-            projected.mission_progress.base_inventory =
-                projected
-                    .mission_progress
-                    .base_inventory
-                    .checked_add(SignedAmount::from(pending.request.quantity))?;
+            // Never credit hypothetical gains from a pending (possibly stale)
+            // reference to finance the risk of a new order.
+            let contribution =
+                SignedAmount::from(quote.bid.checked_notional(pending.request.quantity)?)
+                    .checked_sub(cost)?
+                    .min(SignedAmount::ZERO);
+            pnl = pnl.checked_add(contribution)?;
         }
-        let pnl = projected.liquidation_pnl(config, now)?;
         if pnl <= SignedAmount::ZERO.checked_sub(SignedAmount::from(policy.max_net_loss))?
             || self
                 .protection_progress

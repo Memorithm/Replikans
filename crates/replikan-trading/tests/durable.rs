@@ -1089,3 +1089,23 @@ fn protection_reserves_pending_buy_risk_and_excludes_own_dispatch_reservation() 
     assert_eq!(r.snapshot()?.fills.len(), 1);
     Ok(())
 }
+
+#[test]
+fn protection_never_credits_hypothetical_pending_gains_to_finance_new_risk() -> TestResult {
+    let d = TempDir::new()?;
+    let c = protected_config()?;
+    let mut r = Runtime::open(d.path().join("r"), c.clone())?;
+    let old = collected_quote(&c, 1000, "99", "101")?;
+    r.record_market_snapshot(old.clone())?;
+    r.prepare(quoted_intent(&c, &old, "pending", Side::Buy)?, 1001)?;
+    let current = collected_quote(&c, 2100, "110", "120")?;
+    r.record_market_snapshot(current.clone())?;
+    // Pending buy at 101 would appear profitable at 110, but is not a fill and
+    // cannot subsidize this purchase's known 12-unit liquidation loss.
+    assert!(
+        r.prepare(quoted_intent(&c, &current, "bad", Side::Buy)?, 2101)
+            .is_err()
+    );
+    assert!(r.snapshot()?.fills.is_empty());
+    Ok(())
+}

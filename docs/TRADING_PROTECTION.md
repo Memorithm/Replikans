@@ -43,7 +43,8 @@ the journal, including after prices recover or the process restarts.
 
 Preparation and dispatch additionally project each buy's spread and fees into the
 liquidation valuation. Nonterminal buy reservations are included conservatively
-at full original size; dispatch excludes its own already-counted reservation.
+at full original size; hypothetical gains from pending buys never subsidize new
+risk. Dispatch excludes its own already-counted reservation.
 A projected loss/drawdown threshold breach rejects the buy before sending.
 Existing order, inventory, notional, freshness and quote-capacity rules still apply.
 

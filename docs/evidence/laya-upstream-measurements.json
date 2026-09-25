@@ -1,0 +1,32 @@
+{
+  "upstream_revision": "4066d5d5fbf08b66c6757ddeedbd797bd7655bc0",
+  "upstream_version": "0.3.20",
+  "measurements_reproduced_locally": false,
+  "statistic": "arithmetic mean across timed loop; not p50/p99",
+  "rows": [
+    {
+      "checkpoint": "english",
+      "source_path": "benchmarks/results/fast_english_rtx4070.json",
+      "source_sha256": "6e3ca6766c8ab74be1333fe2135b2f082f2ca962754644cf7201fed5a05e9d8d",
+      "gpu": "NVIDIA GeForce RTX 4070 Ti SUPER",
+      "torch": "2.11.0+cu130",
+      "input_tokens": 72,
+      "case": "short x1",
+      "stock_predict_mean_ms": 19.88110400076645,
+      "fast_predict_mean_ms": 5.26936976724149,
+      "speedup": 3.772956706200975
+    },
+    {
+      "checkpoint": "multilingual",
+      "source_path": "benchmarks/results/fast_multilingual_rtx4070.json",
+      "source_sha256": "28805e6f88d2a65393e42882d9a32c3990cf40a00d7a0fe1c7ede8c3cf90250b",
+      "gpu": "NVIDIA GeForce RTX 4070 Ti SUPER",
+      "torch": "2.11.0+cu130",
+      "input_tokens": 72,
+      "case": "short x1",
+      "stock_predict_mean_ms": 16.34867499912313,
+      "fast_predict_mean_ms": 3.2089029671624303,
+      "speedup": 5.094786338640817
+    }
+  ]
+}

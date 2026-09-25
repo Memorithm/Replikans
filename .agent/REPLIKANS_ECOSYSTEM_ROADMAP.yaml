@@ -204,3 +204,36 @@ agent_operating_protocol:
     financial-execution, replication-policy, cross-repository integration, or
     merge decisions. Read-only diagnosis and hard-coded-wallet auditing are
     allowed.
+
+trading_mission_program_2026_09_25:
+  status: implemented_pending_exact_head_ci
+  pull_request: https://github.com/Memorithm/Replikans/pull/41
+  candidate_revision: e58cdfc367286be20bff2cc69a32364800ae2cfb
+  source_scirust_revision: 8f597e2edbe281b01cfa30a99b1a25d57c32fb70
+  bootstrap: docs/TRADING_MISSIONS.md
+  remote_control_plane: Memorithm/RemoteOps
+  implemented_scope:
+    - optional_immutable_operator_mission_in_Rust_journal_configuration
+    - exact_deduplicated_quote_cash_flows_and_fees_at_fully_closed_spot_cycles
+    - cumulative_buy_spend_including_fees_and_concurrent_reservations
+    - transactional_prepare_and_dispatch_entry_gates_with_durable_target_and_loss_stops
+    - read_only_MCP_mission_status_and_bounded_local_model_campaigns
+    - no_retries_on_unknown_mutations_and_no_policy_or_projection_drift
+  evidence:
+    - twenty_one_Rust_trading_tests_passed_locally
+    - thirty_Python_MCP_agent_tests_passed_with_actual_Rust_binary
+    - two_episode_scripted_buy_sell_exact_net_eight_quote_units_and_restart_stop
+    - final_content_workspace_clippy_format_and_wallet_policy_passed
+  limitations:
+    - paper_only_one_instrument_zero_opening_base_inventory
+    - synthetic_prices_and_scripted_model_are_not_real_model_or_revenue_evidence
+    - no_unrealized_drawdown_daily_loss_FIFO_partial_lot_or_operating_cost_accounting
+    - entry_stops_do_not_automatically_cancel_resting_orders_or_liquidate_inventory
+    - no_live_market_feed_exchange_adapter_custody_or_funded_operation
+  ordered_next:
+    - trusted_market_snapshots_and_causal_source_provenance
+    - strategy_evidence_feasibility_and_counterproposal
+    - mark_to_market_risk_and_independent_runtime_exits
+    - operator_selected_exchange_and_receipt_crash_recovery_qualification
+    - explicit_experiment_recovery_resolution_and_RemoteOps_service_deployment
+    - bounded_funded_qualification_only_after_prior_gates

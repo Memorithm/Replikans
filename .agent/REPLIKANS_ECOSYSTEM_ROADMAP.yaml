@@ -239,3 +239,32 @@ trading_mission_program_2026_09_25:
     - operator_selected_exchange_and_receipt_crash_recovery_qualification
     - explicit_experiment_recovery_resolution_and_RemoteOps_service_deployment
     - bounded_funded_qualification_only_after_prior_gates
+
+trading_quotes_and_laya_study_2026_09_25:
+  quotes_status: merged_exact_head_ci_green
+  quotes_pr: https://github.com/Memorithm/Replikans/pull/42
+  quotes_head: bc85a513b772cf734f61a5b57c3e5a28735ff58d
+  quotes_merge: 70e601e75e3bd9293ce87adabc428b45ee4076c9
+  quotes_ci: https://github.com/Memorithm/Replikans/actions/runs/36187867346
+  quotes_scope:
+    - fixed_public_Binance_bookTicker_collection_no_funded_venue_selection
+    - persisted_raw_response_hash_and_exact_bid_ask_reference_binding
+    - host_only_collection_read_only_model_access_and_fail_closed_freshness
+    - one_durable_dispatch_per_snapshot_side_and_displayed_quantity_bounds
+    - operator_CA_bundle_and_system_proxy_support_without_disabling_TLS
+  quotes_evidence:
+    - 165_workspace_Rust_tests_and_30_Python_tests_passed
+    - actual_public_BTCUSDT_collection_and_replay_succeeded_no_trade_sent
+  laya_status: feasibility_study_merged_no_model_inference_or_production_integration
+  laya_pr: https://github.com/Memorithm/Replikans/pull/43
+  laya_merge: a3bd4a034fd6495bcb6e891bea0c33d67ad2d5a0
+  laya_upstream_revision: 4066d5d5fbf08b66c6757ddeedbd797bd7655bc0
+  laya_report: docs/LAYA_TRADING_FEASIBILITY.md
+  laya_decision: qualify_optional_resident_classifier_or_candidate_selector_in_shadow_mode
+  laya_constraints:
+    - Rust_retains_financial_authorization_sizing_and_independent_protective_exits
+    - upstream_warm_GPU_averages_are_not_local_p99_or_exchange_execution_latency
+    - benchmark_target_hardware_and_task_accuracy_before_adoption
+    - no_CUDA_device_or_PyTorch_available_in_study_environment
+    - improve_persistent_IPC_and_verified_journal_projection_before_latency_claims
+  current_next: finish_replayable_mark_to_market_protection_and_model_independent_worker

@@ -11,6 +11,8 @@ enum Command {
     MissionStatus,
     MarketSnapshot,
     MarketRefresh,
+    ProtectionStatus,
+    Protect,
     Prepare {
         intent: Box<Intent>,
     },
@@ -43,12 +45,15 @@ fn execute(runtime: &mut Runtime, venue: &mut PaperVenue, command: Command) -> R
     match command {
         Command::Capabilities => Ok(
             json!({"schema_version":1,"mode":"paper","protocol":"json-lines",
-            "operations":["capabilities","mission_status","market_snapshot","market_refresh","prepare","abandon","dispatch","reconcile","cancel","snapshot","export"],
+            "operations":["capabilities","mission_status","market_snapshot","market_refresh","protection_status","protect","prepare","abandon","dispatch","reconcile","cancel","snapshot","export"],
             "order_types":if runtime.market_enabled() { vec!["Market"] } else { vec!["Market","Limit"] },
             "market_data_enabled":runtime.market_enabled(),
+            "protection_enabled":runtime.protection_enabled(),
             "time_in_force":["Gtc"],"live":false,"amend":false,
             "fill_model":"snapshot-only, full marketable fills, flat configured quote fee"}),
         ),
+        Command::Protect => runtime.protect(venue, now),
+        Command::ProtectionStatus => runtime.protection_status(now),
         Command::MarketSnapshot => runtime.market_snapshot(now),
         Command::MarketRefresh => runtime.refresh_market(),
         Command::MissionStatus => {

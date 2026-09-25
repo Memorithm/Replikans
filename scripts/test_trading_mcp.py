@@ -75,10 +75,12 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(self.server.handle(request("tools/list"))["error"]["code"], -32002)
         self.server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"})
         listed = self.server.handle(request("tools/list"))["result"]["tools"]
-        self.assertEqual(len(listed), 12)
+        self.assertEqual(len(listed), 13)
         mission = next(tool for tool in listed if tool["name"] == "mission_status")
         self.assertTrue(mission["annotations"]["readOnlyHint"])
         self.assertNotIn("market_refresh", {tool["name"] for tool in listed})
+        self.assertNotIn("protect", {tool["name"] for tool in listed})
+        self.assertTrue(next(t for t in listed if t["name"] == "protection_status")["annotations"]["readOnlyHint"])
         market = next(tool for tool in listed if tool["name"] == "market_snapshot")
         self.assertTrue(market["annotations"]["readOnlyHint"])
         self.assertEqual(self.server.handle(request("initialize"))["error"]["code"], -32602)

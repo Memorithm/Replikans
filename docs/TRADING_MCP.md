@@ -53,6 +53,7 @@ Only protocol responses go to stdout. The client must send `initialize`, then
 | `account_snapshot` | Exact balances, orders, fills and recovery list |
 | `mission_status` | Immutable operator mandate, closed-cycle quote results, remaining buy budget and entry stops; `null` for legacy sessions |
 | `market_snapshot` | Fresh runtime-collected bid/ask, exact references and immutable observation identity; no caller price input |
+| `protection_status` | Read immutable loss/drawdown policy, observed liquidation valuation and stop state |
 | `session_export` | Complete bounded journal evidence |
 
 Tool arguments use strict nested JSON schemas: financial values are plain decimal

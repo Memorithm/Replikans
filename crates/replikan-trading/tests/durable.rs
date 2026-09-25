@@ -483,6 +483,7 @@ fn config() -> Result<Config> {
         paper_quote_fee: NonNegativeMoney::parse("1")?,
         mission: None,
         market_data: None,
+        protection: None,
     })
 }
 
@@ -903,5 +904,208 @@ fn journal_tampering_and_configuration_drift_fail_closed() -> TestResult {
         [],
     )?;
     assert!(open(directory.path()).is_err());
+    Ok(())
+}
+
+fn protected_config() -> Result<Config> {
+    let mut c = market_config()?;
+    c.mission = mission_config()?.mission;
+    if let Some(mission) = c.mission.as_mut() {
+        mission.expires_at_ms = 100_000;
+    }
+    c.protection = Some(replikan_trading::protection::ProtectionPolicy {
+        max_net_loss: NonNegativeMoney::parse("10")?,
+        max_drawdown: NonNegativeMoney::parse("6")?,
+    });
+    Ok(c)
+}
+
+#[test]
+fn protection_latches_loss_abandons_pending_entry_and_exits_without_model() -> TestResult {
+    let d = TempDir::new()?;
+    let c = protected_config()?;
+    let path = d.path().join("r");
+    let mut r = Runtime::open(&path, c.clone())?;
+    let mut v = PaperVenue::open(d.path().join("v"), c.clone())?;
+    let q = collected_quote(&c, 1000, "99", "101")?;
+    r.record_market_snapshot(q.clone())?;
+    r.prepare(quoted_intent(&c, &q, "buy", Side::Buy)?, 1001)?;
+    r.dispatch("buy", &mut v, 1001)?;
+    assert_eq!(r.protection_status(1001)?["current_liquidation_pnl"], "-4");
+    let q = collected_quote(&c, 2100, "101", "102")?;
+    r.record_market_snapshot(q.clone())?;
+    r.prepare(quoted_intent(&c, &q, "pending", Side::Buy)?, 2101)?;
+    let q = collected_quote(&c, 3200, "90", "91")?;
+    r.record_market_snapshot(q.clone())?;
+    assert_eq!(
+        r.protection_status(3201)?["progress"]["stopped"],
+        "net_liquidation_loss_limit"
+    );
+    assert!(
+        r.prepare(quoted_intent(&c, &q, "forbidden", Side::Buy)?, 3201)
+            .is_err()
+    );
+    drop(r);
+    let mut r = Runtime::open(&path, c)?;
+    r.protect(&mut v, 3201)?;
+    let snap = r.snapshot()?;
+    assert_eq!(snap.balances["TEST"], SignedAmount::ZERO);
+    assert_eq!(snap.balances["QUOTE"].as_decimal_string(), "987");
+    assert_eq!(snap.fills.len(), 2);
+    assert!(snap.orders.iter().all(|o| o.status.is_terminal()));
+    r.protect(&mut v, 3202)?;
+    assert_eq!(r.snapshot()?.fills.len(), 2);
+    assert_eq!(
+        r.protection_status(3202)?["progress"]["stopped"],
+        "net_liquidation_loss_limit"
+    );
+    Ok(())
+}
+
+#[test]
+fn protection_drawdown_uses_observed_high_water_and_target_captures_net_fees() -> TestResult {
+    for (high, low, reason, final_cash) in [
+        ("108", "102", "liquidation_drawdown_limit", "999"),
+        ("112", "112", "liquidation_target_reached", "1009"),
+    ] {
+        let d = TempDir::new()?;
+        let c = protected_config()?;
+        let mut r = Runtime::open(d.path().join("r"), c.clone())?;
+        let mut v = PaperVenue::open(d.path().join("v"), c.clone())?;
+        let q = collected_quote(&c, 1000, "99", "101")?;
+        r.record_market_snapshot(q.clone())?;
+        r.prepare(quoted_intent(&c, &q, "buy", Side::Buy)?, 1001)?;
+        r.dispatch("buy", &mut v, 1001)?;
+        r.record_market_snapshot(collected_quote(&c, 2100, high, high)?)?;
+        r.record_market_snapshot(collected_quote(&c, 3200, low, low)?)?;
+        assert_eq!(r.protection_status(3201)?["progress"]["stopped"], reason);
+        r.protect(&mut v, 3201)?;
+        assert_eq!(
+            r.snapshot()?.balances["QUOTE"].as_decimal_string(),
+            final_cash
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn protection_stale_data_never_prices_an_exit_and_deadline_survives_failure() -> TestResult {
+    let d = TempDir::new()?;
+    let mut c = protected_config()?;
+    if let Some(m) = c.mission.as_mut() {
+        m.expires_at_ms = 8000;
+    }
+    let mut r = Runtime::open(d.path().join("r"), c.clone())?;
+    let mut v = PaperVenue::open(d.path().join("v"), c.clone())?;
+    let q = collected_quote(&c, 1000, "99", "101")?;
+    r.record_market_snapshot(q.clone())?;
+    r.prepare(quoted_intent(&c, &q, "buy", Side::Buy)?, 1001)?;
+    r.dispatch("buy", &mut v, 1001)?;
+    assert!(r.protection_status(8000)?["current_liquidation_pnl"].is_null());
+    assert!(r.protect(&mut v, 8000).is_err());
+    assert_eq!(r.snapshot()?.fills.len(), 1);
+    assert_eq!(
+        r.protection_status(8000)?["progress"]["stopped"],
+        "mission_expired"
+    );
+    r.record_market_snapshot(collected_quote(&c, 8100, "100", "101")?)?;
+    r.protect(&mut v, 8101)?;
+    assert_eq!(r.snapshot()?.balances["TEST"], SignedAmount::ZERO);
+    Ok(())
+}
+
+#[test]
+fn protection_lost_exit_reply_is_reconciled_without_duplicate_sale() -> TestResult {
+    let d = TempDir::new()?;
+    let c = protected_config()?;
+    let path = d.path().join("r");
+    let mut r = Runtime::open(&path, c.clone())?;
+    let mut v = PaperVenue::open(d.path().join("v"), c.clone())?;
+    let q = collected_quote(&c, 1000, "99", "101")?;
+    r.record_market_snapshot(q.clone())?;
+    r.prepare(quoted_intent(&c, &q, "buy", Side::Buy)?, 1001)?;
+    r.dispatch("buy", &mut v, 1001)?;
+    r.record_market_snapshot(collected_quote(&c, 2100, "90", "91")?)?;
+    let mut lost = LoseReply(v);
+    assert!(r.protect(&mut lost, 2101).is_err());
+    assert_eq!(r.snapshot()?.recovery_required.len(), 1);
+    drop(r);
+    let mut r = Runtime::open(&path, c)?;
+    r.protect(&mut lost.0, 2102)?;
+    assert_eq!(r.snapshot()?.fills.len(), 2);
+    assert!(r.snapshot()?.recovery_required.is_empty());
+    assert_eq!(r.snapshot()?.balances["TEST"], SignedAmount::ZERO);
+    Ok(())
+}
+
+#[test]
+fn protection_rejects_immediate_spread_loss_and_does_not_bypass_exit_depth() -> TestResult {
+    let d = TempDir::new()?;
+    let c = protected_config()?;
+    let mut r = Runtime::open(d.path().join("r"), c.clone())?;
+    let mut v = PaperVenue::open(d.path().join("v"), c.clone())?;
+    let q = collected_quote(&c, 1000, "90", "101")?;
+    r.record_market_snapshot(q.clone())?;
+    assert!(
+        r.prepare(quoted_intent(&c, &q, "bad", Side::Buy)?, 1001)
+            .is_err()
+    );
+    let q = collected_quote(&c, 2100, "100", "101")?;
+    r.record_market_snapshot(q.clone())?;
+    r.prepare(quoted_intent(&c, &q, "buy", Side::Buy)?, 2101)?;
+    r.dispatch("buy", &mut v, 2101)?;
+    let policy = c.market_data.as_ref().ok_or("policy")?;
+    let body =
+        r#"{"symbol":"TESTQUOTE","bidPrice":"90","askPrice":"91","bidQty":"0.1","askQty":"2"}"#;
+    let q = replikan_trading::market::collect(
+        policy,
+        &QuoteTransport {
+            body: body.into(),
+            status: 200,
+        },
+        || Ok(3200),
+    )?;
+    r.record_market_snapshot(q)?;
+    assert!(r.protect(&mut v, 3200).is_err());
+    assert_eq!(r.snapshot()?.fills.len(), 1);
+    assert_eq!(r.snapshot()?.balances["TEST"].as_decimal_string(), "1");
+    Ok(())
+}
+
+#[test]
+fn protection_reserves_pending_buy_risk_and_excludes_own_dispatch_reservation() -> TestResult {
+    let d = TempDir::new()?;
+    let c = protected_config()?;
+    let mut r = Runtime::open(d.path().join("r"), c.clone())?;
+    let mut v = PaperVenue::open(d.path().join("v"), c.clone())?;
+    let q = collected_quote(&c, 1000, "99", "101")?;
+    r.record_market_snapshot(q.clone())?;
+    r.prepare(quoted_intent(&c, &q, "one", Side::Buy)?, 1001)?;
+    assert!(
+        r.prepare(quoted_intent(&c, &q, "two", Side::Buy)?, 1001)
+            .is_err()
+    );
+    r.dispatch("one", &mut v, 1001)?;
+    assert_eq!(r.snapshot()?.fills.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn protection_never_credits_hypothetical_pending_gains_to_finance_new_risk() -> TestResult {
+    let d = TempDir::new()?;
+    let c = protected_config()?;
+    let mut r = Runtime::open(d.path().join("r"), c.clone())?;
+    let old = collected_quote(&c, 1000, "99", "101")?;
+    r.record_market_snapshot(old.clone())?;
+    r.prepare(quoted_intent(&c, &old, "pending", Side::Buy)?, 1001)?;
+    let current = collected_quote(&c, 2100, "110", "120")?;
+    r.record_market_snapshot(current.clone())?;
+    // Pending buy at 101 would appear profitable at 110, but is not a fill and
+    // cannot subsidize this purchase's known 12-unit liquidation loss.
+    assert!(
+        r.prepare(quoted_intent(&c, &current, "bad", Side::Buy)?, 2101)
+            .is_err()
+    );
+    assert!(r.snapshot()?.fills.is_empty());
     Ok(())
 }

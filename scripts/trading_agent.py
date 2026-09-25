@@ -411,7 +411,9 @@ def run_campaign(journal, model, client, campaign, max_episodes, interval_second
                                 for order in snapshot["orders"])):
                     reason = status["new_buys_blocked_by"]
                     break
-            if capabilities.get("market_data_enabled"):
+            # With protection enabled the independent guard owns collection;
+            # competing collectors would invalidate each other's observations.
+            if capabilities.get("market_data_enabled") and not capabilities.get("protection_enabled"):
                 journal.append("market_refresh_requested", campaign, {"episode_index": episodes})
                 refreshed = client.refresh_market()
                 journal.append("market_refreshed", campaign, {"episode_index": episodes, "result": refreshed})

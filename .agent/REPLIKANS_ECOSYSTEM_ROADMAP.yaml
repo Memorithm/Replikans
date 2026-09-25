@@ -268,3 +268,39 @@ trading_quotes_and_laya_study_2026_09_25:
     - no_CUDA_device_or_PyTorch_available_in_study_environment
     - improve_persistent_IPC_and_verified_journal_projection_before_latency_claims
   current_next: finish_replayable_mark_to_market_protection_and_model_independent_worker
+
+trading_position_protection_2026_09_25:
+  status: merged_exact_head_ci_green
+  pull_request: https://github.com/Memorithm/Replikans/pull/44
+  candidate_revision: 59dfa455f9dd954b8aa31e900771e3dc8381e462
+  merge_revision: 9757eaf52e1780735e71ecb2c885692ef067c01e
+  ci_run: https://github.com/Memorithm/Replikans/actions/runs/36189744720
+  bootstrap: docs/TRADING_PROTECTION.md
+  implemented_scope:
+    - immutable_optional_liquidation_loss_and_observed_high_water_drawdown_policy
+    - exact_cumulative_bid_valuation_with_one_configured_exit_fee
+    - sticky_loss_drawdown_target_and_deadline_entry_stops
+    - projected_purchase_spread_fees_and_pending_buy_risk_at_prepare_and_dispatch
+    - hypothetical_pending_gains_never_finance_new_exposure
+    - host_owned_reconciliation_cancellation_and_full_inventory_exit_through_normal_authorization
+    - independent_bounded_foreground_guard_owns_quote_collection_no_model_dependency
+    - read_only_MCP_protection_status
+  evidence:
+    - final_32_Rust_trading_tests_and_35_Python_tests_with_actual_Rust_binary_passed
+    - workspace_CI_format_check_clippy_tests_and_paper_MCP_agent_acceptance_passed
+    - lost_exit_reply_reconciles_without_duplicate_sale_after_restart
+    - stale_quote_and_insufficient_depth_preserve_stop_and_refuse_false_liquidation
+    - published_13_files_hash_match_tested_local_contents
+  limitations:
+    - paper_only_no_native_exchange_hosted_stop_or_funded_execution
+    - one_full_exit_no_slicing_no_guaranteed_liquidity_or_maximum_loss
+    - observed_bid_mark_not_FIFO_operating_cost_or_fee_conversion_accounting
+    - foreground_guard_stops_on_errors_no_deployed_RemoteOps_recovery_service
+    - current_IPC_process_recreation_and_full_journal_replay_not_low_latency_qualified
+  next_qualification_inputs:
+    - operator_selected_exchange_and_native_account_constraints
+    - target_GPU_host_for_actual_Laya_latency_and_task_accuracy_evaluation
+  next_engineering:
+    - persistent_market_and_execution_transports_with_verified_state_projection
+    - Laya_shadow_candidate_selection_and_chronological_strategy_validation
+    - typed_recovery_outcomes_and_RemoteOps_worker_lifecycle

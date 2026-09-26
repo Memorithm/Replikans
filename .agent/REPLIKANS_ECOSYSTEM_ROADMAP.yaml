@@ -304,3 +304,35 @@ trading_position_protection_2026_09_25:
     - persistent_market_and_execution_transports_with_verified_state_projection
     - Laya_shadow_candidate_selection_and_chronological_strategy_validation
     - typed_recovery_outcomes_and_RemoteOps_worker_lifecycle
+
+laya_shadow_prototype_2026_09_26:
+  status: merged_exact_head_ci_green
+  pull_request: https://github.com/Memorithm/Replikans/pull/45
+  candidate_revision: daf4fd85bb494fb9bcaf44412bcef97a3c0f5cc2
+  merge_revision: 55369157c134905d323a82d1b19a4117e0ba5e75
+  ci_run: https://github.com/Memorithm/Replikans/actions/runs/36225243732
+  bootstrap: docs/LAYA_SHADOW.md
+  upstream_code_revision: 4066d5d5fbf08b66c6757ddeedbd797bd7655bc0
+  implemented_scope:
+    - bounded_snapshot_bound_candidate_packets_and_read_only_market_snapshot_bridge
+    - causal_availability_checks_and_isolation_of_evaluation_labels
+    - full_probability_validation_abstention_and_monotonic_lateness_rejection
+    - resident_offline_checkpoint_with_full_artifact_manifest_and_exact_code_revision
+    - strict_CUDA_forward_without_automatic_CPU_retry_and_preflight_token_budget_checks
+    - JSONL_replay_benchmark_with_provenance_latency_coverage_and_baseline_comparison
+    - explicit_constant_abstain_fixture_never_substitutes_for_missing_real_weights
+  evidence:
+    - 14_new_contract_tests_passed_locally
+    - complete_workspace_CI_and_real_Rust_MCP_agent_acceptance_passed
+    - synthetic_shadow_CLI_smoke_passed_without_model_or_financial_dispatch
+  limitations:
+    - no_actual_Laya_checkpoint_inference_or_GPU_kernel_qualification_performed
+    - no_profitability_evaluation_or_financial_execution_capability
+    - historical_replay_TTL_is_not_current_market_freshness_authorization
+    - latency_gate_discards_late_results_after_return_does_not_preempt_hung_kernels
+    - private_formatter_and_forward_integration_requires_requalification_on_upgrade
+  next:
+    - materialize_reviewed_weights_and_record_environment_dependency_lock
+    - run_CPU_and_target_GPU_inference_acceptance_then_representative_chronological_evaluation
+    - compare_rules_and_agent_baselines_before_any_paper_strategy_promotion
+    - qualify_process_supervision_and_persistent_execution_path_separately

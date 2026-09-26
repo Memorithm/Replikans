@@ -1,0 +1,12 @@
+{
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "logical_cpus": 9,
+  "cgroup_cpu_max": "800000 100000",
+  "cgroup_memory_max": "8589934592",
+  "cuda_devices": [],
+  "OMP_NUM_THREADS": "4",
+  "MKL_NUM_THREADS": "4",
+  "TOKENIZERS_PARALLELISM": "false",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39"
+}

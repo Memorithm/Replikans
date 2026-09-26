@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-26",
+  "replikans_revision": "46ce028ae2405994b6c4ede22b4e69e53857a550",
+  "checkpoint_repository": "convaiinnovations/laya-multilingual",
+  "checkpoint_revision": "e4e9ddf21a7b1903b7acffd8814ad4307bf63a67",
+  "runs": [
+    {
+      "name": "cpu-fp32-smoke",
+      "raw_jsonl_sha256": "3e9604d7bf3ccb7f8b49e286ebb4f1e91eca0037156b36364d4b2a8594ed9a5f",
+      "header": {
+        "adapter_sha256": "3595ac99d1ad9aeec865955313ef118b8c3a12706c60db86f5b1d2d1389b82e9",
+        "dataset_kind": "synthetic",
+        "dataset_sha256": "8cd746c7fa85e27bb0bb415606bd303eb631030d3c368e7122aa0688ec8b32da",
+        "execution_authorized": false,
+        "financial_dispatches": 0,
+        "initialization_ms": 11244.349069,
+        "kind": "run",
+        "model": {
+          "artifact_manifest_sha256": "699502992af2266f9684cb4e2f4e8b5ada7da687429dd59e9ba39e74e9a08698",
+          "code_revision": "4066d5d5fbf08b66c6757ddeedbd797bd7655bc0",
+          "cuda": null,
+          "device": "cpu",
+          "device_name": "x86_64",
+          "dtype": "torch.float32",
+          "fast": false,
+          "provider": "laya",
+          "torch": "2.14.0+cpu",
+          "torch_interop_threads": 9,
+          "torch_threads": 4,
+          "transformers": "5.17.0"
+        },
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+        "python": "3.12.14",
+        "real_inference": true,
+        "repeats": 1,
+        "runner_sha256": "5b58ef5b465d96e5e8f076dd1ab1822e14e694ce80dd3fba847914bf73f391f6",
+        "schema_version": 1,
+        "warmups": 3
+      },
+      "summary": {
+        "baseline_accuracy": 0.3333333333333333,
+        "coverage": 0.0,
+        "deadline_exceeded_trials": 3,
+        "execution_authorized": false,
+        "kind": "summary",
+        "latency_ms": {
+          "max": 149.185455,
+          "p50": 138.64898,
+          "p95": 149.185455,
+          "p99": 149.185455
+        },
+        "p99_sample_warning": true,
+        "profitability_evaluated": false,
+        "reasons": {
+          "late": 3
+        },
+        "selected_accuracy": null,
+        "status": "completed",
+        "trials": 3,
+        "unique_cases": 3,
+        "valid_prediction_accuracy": null,
+        "valid_predictions": 0
+      }
+    },
+    {
+      "name": "cpu-fp32",
+      "raw_jsonl_sha256": "a28fc97a0ffad08a97ec1136f42db150522587c6957bfa915ac6942de95a5408",
+      "header": {
+        "adapter_sha256": "3595ac99d1ad9aeec865955313ef118b8c3a12706c60db86f5b1d2d1389b82e9",
+        "dataset_kind": "synthetic",
+        "dataset_sha256": "8cd746c7fa85e27bb0bb415606bd303eb631030d3c368e7122aa0688ec8b32da",
+        "execution_authorized": false,
+        "financial_dispatches": 0,
+        "initialization_ms": 10210.411739,
+        "kind": "run",
+        "model": {
+          "artifact_manifest_sha256": "699502992af2266f9684cb4e2f4e8b5ada7da687429dd59e9ba39e74e9a08698",
+          "code_revision": "4066d5d5fbf08b66c6757ddeedbd797bd7655bc0",
+          "cuda": null,
+          "device": "cpu",
+          "device_name": "x86_64",
+          "dtype": "torch.float32",
+          "fast": false,
+          "provider": "laya",
+          "torch": "2.14.0+cpu",
+          "torch_interop_threads": 9,
+          "torch_threads": 4,
+          "transformers": "5.17.0"
+        },
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+        "python": "3.12.14",
+        "real_inference": true,
+        "repeats": 100,
+        "runner_sha256": "5b58ef5b465d96e5e8f076dd1ab1822e14e694ce80dd3fba847914bf73f391f6",
+        "schema_version": 1,
+        "warmups": 10
+      },
+      "summary": {
+        "baseline_accuracy": 0.3333333333333333,
+        "coverage": 0.13333333333333333,
+        "deadline_exceeded_trials": 174,
+        "execution_authorized": false,
+        "kind": "summary",
+        "latency_ms": {
+          "max": 348.910676,
+          "p50": 105.436851,
+          "p95": 177.735749,
+          "p99": 278.623822
+        },
+        "p99_sample_warning": true,
+        "profitability_evaluated": false,
+        "reasons": {
+          "late": 174,
+          "selected": 40,
+          "uncertain": 86
+        },
+        "selected_accuracy": 1.0,
+        "status": "completed",
+        "trials": 300,
+        "unique_cases": 3,
+        "valid_prediction_accuracy": 0.6666666666666666,
+        "valid_predictions": 126
+      }
+    },
+    {
+      "name": "cpu-bf16",
+      "raw_jsonl_sha256": "a6e4068c21e5a9145904d9667cf5e6926c9e3212a7c2897b90cdcd27c5042727",
+      "header": {
+        "adapter_sha256": "3595ac99d1ad9aeec865955313ef118b8c3a12706c60db86f5b1d2d1389b82e9",
+        "dataset_kind": "synthetic",
+        "dataset_sha256": "8cd746c7fa85e27bb0bb415606bd303eb631030d3c368e7122aa0688ec8b32da",
+        "execution_authorized": false,
+        "financial_dispatches": 0,
+        "initialization_ms": 10184.660585,
+        "kind": "run",
+        "model": {
+          "artifact_manifest_sha256": "699502992af2266f9684cb4e2f4e8b5ada7da687429dd59e9ba39e74e9a08698",
+          "code_revision": "4066d5d5fbf08b66c6757ddeedbd797bd7655bc0",
+          "cuda": null,
+          "device": "cpu",
+          "device_name": "x86_64",
+          "dtype": "torch.bfloat16",
+          "fast": false,
+          "provider": "laya",
+          "torch": "2.14.0+cpu",
+          "torch_interop_threads": 9,
+          "torch_threads": 4,
+          "transformers": "5.17.0"
+        },
+        "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+        "python": "3.12.14",
+        "real_inference": true,
+        "repeats": 100,
+        "runner_sha256": "5b58ef5b465d96e5e8f076dd1ab1822e14e694ce80dd3fba847914bf73f391f6",
+        "schema_version": 1,
+        "warmups": 10
+      },
+      "summary": {
+        "baseline_accuracy": 0.3333333333333333,
+        "coverage": 0.0,
+        "deadline_exceeded_trials": 300,
+        "execution_authorized": false,
+        "kind": "summary",
+        "latency_ms": {
+          "max": 1785.42124,
+          "p50": 258.716609,
+          "p95": 392.351035,
+          "p99": 1173.169497
+        },
+        "p99_sample_warning": true,
+        "profitability_evaluated": false,
+        "reasons": {
+          "late": 300
+        },
+        "selected_accuracy": null,
+        "status": "completed",
+        "trials": 300,
+        "unique_cases": 3,
+        "valid_prediction_accuracy": null,
+        "valid_predictions": 0
+      }
+    }
+  ]
+}

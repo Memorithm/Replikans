@@ -51,3 +51,9 @@ jobs:
         env:
           REPLIKAN_TRADING_BINARY: target/debug/replikan-trading
         run: python3 -m unittest discover -s scripts -p 'test_trading_agent*.py' -v
+
+      - name: Laya shadow pipeline smoke (synthetic, no model inference)
+        run: |
+          python3 scripts/benchmark_laya_shadow.py --fixture --dataset-kind synthetic \
+            --dataset scripts/fixtures/laya-shadow-synthetic.jsonl \
+            --output "$RUNNER_TEMP/laya-shadow-fixture.jsonl"

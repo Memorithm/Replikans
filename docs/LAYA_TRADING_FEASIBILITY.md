@@ -7,7 +7,9 @@ n'a été exécuté pour cette étude.
 Révision du code Laya examinée :
 `4066d5d5fbf08b66c6757ddeedbd797bd7655bc0`, version déclarée `0.3.20`.
 Base Replikans examinée : PR #42, tête `bc85a513b772cf734f61a5b57c3e5a28735ff58d`.
-Les travaux sur les sorties Rust restent un chantier distinct en cours.
+Les sorties Rust ont depuis été intégrées par la PR #44. Le
+[prototype en observation](LAYA_SHADOW.md) prolonge cette étude ; son contrat est
+testé, mais l’inférence réelle reste à qualifier.
 
 ## Ce que Laya apporte
 

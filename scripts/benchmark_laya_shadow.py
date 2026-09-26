@@ -55,6 +55,7 @@ def summarize(rows):
     return {'trials': len(rows), 'unique_cases': len({row['result']['request_id'] for row in rows}),
             'latency_ms': {'p50': quantile(.5), 'p95': quantile(.95), 'p99': quantile(.99), 'max': latencies[-1]},
             'reasons': dict(Counter(row['result']['reason'] for row in rows)),
+            'deadline_exceeded_trials': sum(bool(row['result']['deadline_exceeded']) for row in rows),
             'coverage': len(selected)/len(rows),
             'valid_predictions': len(usable),
             'status': 'completed_with_model_errors' if any(row['result']['reason'] == 'model_error' for row in rows) else 'completed',

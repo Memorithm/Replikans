@@ -1,7 +1,7 @@
 schema_version: 1
 kind: replikans_ecosystem_agent_roadmap
 status: active
-last_updated: "2026-08-31"
+last_updated: "2026-09-26"
 repository: Memorithm/Replikans
 intended_consumer: autonomous_coding_agent
 merge_policy: never_merge_this_file_to_default_branch_unless_user_explicitly_requests
@@ -306,11 +306,17 @@ trading_position_protection_2026_09_25:
     - typed_recovery_outcomes_and_RemoteOps_worker_lifecycle
 
 laya_shadow_prototype_2026_09_26:
-  status: merged_exact_head_ci_green
+  status: merged_review_invalidated_corrective_pending
   pull_request: https://github.com/Memorithm/Replikans/pull/45
   candidate_revision: daf4fd85bb494fb9bcaf44412bcef97a3c0f5cc2
   merge_revision: 55369157c134905d323a82d1b19a4117e0ba5e75
   ci_run: https://github.com/Memorithm/Replikans/actions/runs/36225243732
+  qualification_correction:
+    material_review: P2_late_model_error_was_overwritten_as_late
+    consequence: merged_change_not_counted_as_qualified_until_corrective_PR_merges
+    corrective_pr: https://github.com/Memorithm/Replikans/pull/46
+    corrective_head: 716ad1dea191f5f8966f0adae12e46711dca6f68
+    corrective_ci_status: pending_exact_head
   bootstrap: docs/LAYA_SHADOW.md
   upstream_code_revision: 4066d5d5fbf08b66c6757ddeedbd797bd7655bc0
   implemented_scope:

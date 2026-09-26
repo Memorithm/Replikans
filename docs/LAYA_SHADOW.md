@@ -7,6 +7,9 @@ loads account configuration, constructs an order or calls a venue. Every result
 is marked `mode=shadow` and `execution_authorized=false`. Rust authorization and
 the independent protection worker remain authoritative and unchanged.
 
+The [SciRust CPU follow-up](LAYA_SCIRUST_CPU.md) exercises actual alternative
+kernels inside the model and additional thread settings. It remains experimental.
+
 ## Implemented contract
 
 `scripts/trading_laya_shadow.py` accepts one bounded packet containing a request

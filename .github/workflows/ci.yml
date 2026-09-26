@@ -37,6 +37,12 @@ jobs:
       - name: Cargo test
         run: cargo test --workspace
 
+      - name: Experimental SciRust CPU bridge oracle checks
+        run: |
+          cargo fmt --manifest-path experiments/laya_cpu_scirust/Cargo.toml -- --check
+          cargo clippy --manifest-path experiments/laya_cpu_scirust/Cargo.toml --locked --all-targets -- -D warnings
+          cargo test --manifest-path experiments/laya_cpu_scirust/Cargo.toml --locked
+
       - name: Trading paper agent acceptance
         run: |
           cargo build -p replikan-trading --bin replikan-trading

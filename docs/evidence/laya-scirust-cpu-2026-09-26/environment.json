@@ -1,0 +1,23 @@
+{
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "logical_cpus": 9,
+  "cgroup_cpu_max": "800000 100000",
+  "cgroup_memory_max": "8589934592",
+  "cuda_devices": [],
+  "OMP_NUM_THREADS": "per run, equal to --threads",
+  "MKL_NUM_THREADS": "per run, equal to --threads",
+  "TOKENIZERS_PARALLELISM": "false",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "torch_interop_threads": 1,
+  "thread_sweep": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "root_revision": "daee9c7db7315a36111c5b11b49fe996dc5882e5",
+  "source_scirust_revision": "8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e",
+  "amx_exposed": false,
+  "profiler_scope": "three real packets, PyTorch FP32, intra-op 4, inter-op 9; instrumentation adds overhead"
+}

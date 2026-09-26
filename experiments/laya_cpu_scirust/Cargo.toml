@@ -1,0 +1,14 @@
+[package]
+name = "laya-scirust-cpu-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+scirust-simd = { git = "https://github.com/Memorithm/scirust.git", rev = "8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e" }
+

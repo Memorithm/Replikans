@@ -1,0 +1,7 @@
+{
+  "Cargo.toml": "eb495b8243d2125c0498276b477cb923d7c5fc6e5d3605bb792245f5ef35b78e",
+  "Cargo.lock": "d31fb39fc7961548bbe72807e7d005059148cf4edce27195f55f4d15ef3ee277",
+  "src/lib.rs": "88955c8bbcec0d7a4bc4e3eda949038eda75576d55076a81e57a6aa1405a9ea9",
+  "probe.py": "a52c64715d26d9328c69bcf1ca9a20e2c2c3270d2fd79cdab9aef3dca5cce9f9",
+  "target/release/liblaya_scirust_cpu_probe.so": "3f355ff54b0680e150e22cffb02af172720f7710fb0ce7b0267e46f960516583"
+}

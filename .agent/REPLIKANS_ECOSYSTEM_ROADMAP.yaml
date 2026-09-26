@@ -393,3 +393,44 @@ laya_actual_cpu_qualification_2026_09_26:
     - qualify_architecture_preserving_graph_fusion_and_quantized_CPU_candidates
     - build_representative_chronological_labels_and_compare_rules_agent_baselines
     - independently_qualify_supervision_and_persistent_financial_execution_path
+
+laya_sciagent_cpu_campaign_2026_09_26:
+  status: merged_exact_head_ci_green
+  pull_request: https://github.com/Memorithm/Replikans/pull/51
+  candidate_revision: 57defe4d1dfcf56a32f97e2b8deb807bfde4c735
+  merge_revision: 85771c88dd549ee21cd5bec527ba7094f912339a
+  ci_run: https://github.com/Memorithm/Replikans/actions/runs/36231339952
+  source_scirust_revision: 8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e
+  report: docs/LAYA_SCIAGENT_CPU.md
+  evidence: docs/evidence/laya-sciagent-cpu-2026-09-26
+  protocol:
+    - actual_sciagent_optimize_run_with_baseline_generate_compile_verify_benchmark_profile_rewrite
+    - explicit_two_candidate_adapter_no_SciAgent_language_model_invocation
+    - frozen_sources_checkpoint_manifest_oracle_inputs_warmups_and_timing_boundaries
+    - real_Laya_checkpoint_no_fixture_model_substitution
+    - two_iterations_three_hundred_long_run_calls_each_plus_three_hundred_baseline_and_six_verification_calls
+  measured_observations: 906
+  stage_failures: 0
+  model_errors: 0
+  final_decision: budget_exhausted_no_promotable_candidate
+  required_speedup: 1.05
+  best_verified_speedup: 0.30345356337724627
+  results:
+    torch_8_threads: {p50_ms: 97.261993, p95_ms: 118.741446, p99_ms: 125.812595, late: 111}
+    scirust_persistent_4_threads: {p50_ms: 320.516892, p95_ms: 348.120676, p99_ms: 369.974363, late: 300}
+    scirust_reused_outputs_4_threads: {p50_ms: 321.857426, p95_ms: 362.853462, p99_ms: 409.710359, late: 300}
+  invariants:
+    - 264_layer_oracles_and_final_logits_choices_probabilities_pass_per_SciRust_run
+    - unchanged_mixed_atol_rtol_one_e_minus_four_and_probability_drift_limit
+    - full_stage_logs_raw_observations_profiles_and_failure_list_retained
+    - no_production_backend_financial_policy_shared_SciRust_API_or_ML_maturity_promotion
+    - no_financial_dispatch_or_profitability_claim
+  limitations:
+    - three_unique_synthetic_packets_fixed_order_virtualized_host_no_service_guarantee
+    - output_buffer_reuse_requires_sequential_completed_forwards
+    - workspace_reuse_still_repacks_weights_each_call
+    - observed_negative_result_does_not_exhaust_CPU_options
+  next:
+    - evaluate_persistent_packed_weights_with_architecture_preserving_oracles
+    - qualify_graph_fusion_or_calibrated_quantization_against_actual_model_outputs
+    - collect_representative_chronological_labels_before_strategy_promotion

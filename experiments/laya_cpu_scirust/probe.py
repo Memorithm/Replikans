@@ -30,21 +30,30 @@ class Bridge:
         self.fn.argtypes = [pointer, pointer, pointer, ctypes.c_size_t,
                            ctypes.c_size_t, ctypes.c_size_t, ctypes.c_uint32, ctypes.c_size_t]
         self.fn.restype = ctypes.c_int32
-        self.mode = int(backend == 'scirust-parallel')
+        self.mode = {'scirust-prepared': 0, 'scirust-parallel': 1, 'scirust-persistent': 2, 'scirust-reuse': 2}[backend]
+        self.reuse = backend == 'scirust-reuse'
         self.threads = threads
         self.calls = 0
         self.oracle_checks = 0
         self.max_abs_error = 0.0
         self.check_oracle = True
 
-    def multiply(self, a, b):
+    def multiply(self, a, b, buffers):
         # All buffers remain owned, initialized and disjoint until synchronous return.
         if (a.dtype != np.float32 or b.dtype != np.float32 or a.ndim != 2 or b.ndim != 2
                 or not a.flags.c_contiguous or not b.flags.c_contiguous or a.shape[1] != b.shape[0]):
             raise ValueError('invalid benchmark buffer')
         m, k = a.shape
         n = b.shape[1]
-        c = np.zeros((m, n), dtype=np.float32)
+        shape = (m, n)
+        if self.reuse:
+            if shape not in buffers:
+                if len(buffers) >= 8:
+                    raise ValueError('too many shapes for the bounded output cache')
+                buffers[shape] = np.zeros(shape, dtype=np.float32)
+            c = buffers[shape]
+        else:
+            c = np.zeros(shape, dtype=np.float32)
         pointer = ctypes.POINTER(ctypes.c_float)
         status = self.fn(a.ctypes.data_as(pointer), b.ctypes.data_as(pointer),
                          c.ctypes.data_as(pointer), m, k, n, self.mode, self.threads)
@@ -58,12 +67,13 @@ class Bridge:
         weight = np.ascontiguousarray(module.weight.detach().numpy().T)
         bias = module.bias.detach().numpy().copy() if module.bias is not None else None
         bridge = self
+        buffers = {}  # Per-layer; only sequential completed forwards may reuse outputs.
 
         def forward(_module, x):
             if x.device.type != 'cpu' or x.dtype != torch.float32 or torch.is_grad_enabled():
                 raise ValueError('CPU float32 inference only')
             a = x.detach().contiguous().numpy().reshape(-1, weight.shape[0])
-            c = bridge.multiply(a, weight)
+            c = bridge.multiply(a, weight, buffers)
             if bias is not None:
                 c += bias
             actual = torch.from_numpy(c).reshape(*x.shape[:-1], weight.shape[1])
@@ -83,7 +93,7 @@ def main():
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--library', type=Path)
-    parser.add_argument('--backend', choices=('torch', 'scirust-prepared', 'scirust-parallel'), required=True)
+    parser.add_argument('--backend', choices=('torch', 'scirust-prepared', 'scirust-parallel', 'scirust-persistent', 'scirust-reuse'), required=True)
     parser.add_argument('--threads', type=int, choices=(1, 2, 4, 8), default=4)
     parser.add_argument('--repeats', type=int, default=10)
     args = parser.parse_args()

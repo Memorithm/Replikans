@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task_id": "laya-persistent-cpu-v1",
+  "backend": "cpu",
+  "baseline": {
+    "median_ns": 97261993.0
+  },
+  "target_speedup": 1.05,
+  "iterations": [
+    {
+      "iteration": 1,
+      "verification": {
+        "passed": true,
+        "max_abs_error": 0.0068359375,
+        "max_rel_error": null,
+        "notes": "Live 264 layer and final-logit checks enforce atol=rtol=1e-4. Scalar absolute cap is additional, not a replacement; standalone maximum relative error is not measured."
+      },
+      "timing": {
+        "median_ns": 320516892.0
+      },
+      "speedup": 0.30345356337724627,
+      "correctness_gate": true,
+      "performance_gate": false,
+      "decision": "rewrite-for-performance"
+    },
+    {
+      "iteration": 2,
+      "verification": {
+        "passed": true,
+        "max_abs_error": 0.0068359375,
+        "max_rel_error": null,
+        "notes": "Live 264 layer and final-logit checks enforce atol=rtol=1e-4. Scalar absolute cap is additional, not a replacement; standalone maximum relative error is not measured."
+      },
+      "timing": {
+        "median_ns": 321857426.0
+      },
+      "speedup": 0.30218968134045787,
+      "correctness_gate": true,
+      "performance_gate": false,
+      "decision": "rewrite-for-performance"
+    }
+  ],
+  "failures": [],
+  "final_decision": "budget-exhausted",
+  "best_verified_speedup": 0.30345356337724627
+}

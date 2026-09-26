@@ -1,0 +1,102 @@
+{
+  "id": "laya-persistent-cpu-v1",
+  "crate_name": "laya-scirust-cpu-probe",
+  "backend": "cpu",
+  "goal": "Preserve real Laya outputs and improve end-to-end median over fresh Torch8 by >=5%",
+  "allowed_paths": [
+    "candidate.json"
+  ],
+  "budget": {
+    "max_iterations": 2,
+    "min_speedup": 1.05,
+    "max_abs_error": 0.01,
+    "max_rel_error": 0.0001,
+    "command_timeout_secs": 900
+  },
+  "commands": {
+    "baseline": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "baseline"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    },
+    "generate": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "generate"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    },
+    "compile": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "compile"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    },
+    "verify": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "verify"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    },
+    "benchmark": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "benchmark"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    },
+    "profile": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "profile"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    },
+    "rewrite": {
+      "program": "/tmp/laya-qualification-env/bin/python",
+      "args": [
+        "/workspace/scratch/8ffda3c8dd62/Replikans/experiments/laya_cpu_scirust/optimize.py",
+        "--stage",
+        "rewrite"
+      ],
+      "env": {
+        "TOKENIZERS_PARALLELISM": "false",
+        "LAYA_CPU_AMP": ""
+      }
+    }
+  }
+}

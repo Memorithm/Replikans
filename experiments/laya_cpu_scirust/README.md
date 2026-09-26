@@ -18,6 +18,11 @@ Backends:
   selected PyTorch thread count still applies to the rest of the model.
 - `scirust-parallel`: `sgemm_parallel` with 2, 4 or 8 threads in the recorded
   comparison. This API creates scoped threads and allocates packing per call.
+- `scirust-persistent`: persistent Rayon workers split the output by rows and
+  execute the same SciRust prepared GEMM with per-worker reusable workspaces.
+- `scirust-reuse`: the persistent variant also reuses initialized output buffers
+  per layer and shape (maximum eight shapes). This requires sequential completed
+  forwards; it is not safe as a general concurrent model adapter.
 
 SciRust's available AVX-512 path is checked at startup; the experiment refuses a
 different machine path. Workspace reuse does **not** mean static weights are
@@ -71,3 +76,39 @@ cargo +stable clippy --locked --all-targets \
 These two Rust tests use an independent f64 sum oracle and rejection checks; they
 do not need Torch or model downloads. Actual checkpoint evidence is separate in
 [`LAYA_SCIRUST_CPU.md`](../../docs/LAYA_SCIRUST_CPU.md).
+
+## Bounded SciAgent optimization campaign
+
+`optimize.py` invokes the actual `sciagent-optimize run` CLI from the pinned
+SciRust revision. Its explicit generator selects two preimplemented candidates:
+persistent workers/workspaces, then output-buffer reuse. It does not invoke an
+LLM or train SciAgent. Only `candidate.json` is changed by the generator; source,
+oracle, checkpoint manifest and benchmark hashes are frozen throughout the run.
+
+```bash
+/absolute/laya-env/bin/python experiments/laya_cpu_scirust/optimize.py \
+  --work-dir /absolute/new-campaign \
+  --model-dir /absolute/checkpoint \
+  --manifest /absolute/prepared-manifest.json \
+  --sciagent /absolute/scirust/target/release/sciagent-optimize \
+  --sciagent-source /absolute/scirust \
+  --cargo /absolute/cargo
+```
+
+Build SciAgent from a clean checkout at the revision pinned in `optimize.py`
+using `cargo +stable build --release --locked -p scirust-sciagent --bin
+sciagent-optimize`. The wrapper records the binary hash and checkout revision;
+these are provenance, not a cryptographic build attestation.
+
+The frozen comparator is a fresh 300-call Torch eight-thread run. Each candidate
+uses four threads, passes compile/lint/Rust tests and real-model parity, then runs
+300 calls with ten warm-ups. The extra verification stage records three measured
+calls. SciAgent requires at least 1.05x median speedup and numerical correctness.
+The original mixed tolerance remains mandatory; SciAgent's additional scalar
+absolute-error cap is 0.01. No standalone maximum relative error is reported.
+Profiles are separate instrumented runs and never used as gate timings.
+
+Keep the entire campaign directory, including failed stages. SciAgent exit 2
+means the bounded campaign found no promotable candidate; the wrapper records
+this result and exits successfully only when no stage failures were recorded.
+No verdict activates a trading backend or dispatches financial actions.

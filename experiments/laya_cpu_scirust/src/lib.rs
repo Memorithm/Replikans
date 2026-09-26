@@ -1,5 +1,6 @@
 //! Private, single-process benchmark bridge; not a production execution API.
 //! Caller owns initialized, disjoint contiguous f32 buffers for the entire call.
+use rayon::prelude::*;
 use scirust_simd::gemm::sgemm_parallel;
 use scirust_simd::matrix::gemm_plan::GemmPlanF32;
 use scirust_simd::matrix::workspace_gemm::GemmWorkspaceF32;
@@ -7,7 +8,58 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 type Plans = HashMap<(usize, usize, usize), (GemmPlanF32, GemmWorkspaceF32)>;
-thread_local! { static PLANS: RefCell<Plans> = RefCell::new(HashMap::new()); }
+thread_local! {
+    static PLANS: RefCell<Plans> = RefCell::new(HashMap::new());
+    static POOLS: RefCell<HashMap<usize, rayon::ThreadPool>> = RefCell::new(HashMap::new());
+}
+
+fn prepared(a: &[f32], b: &[f32], c: &mut [f32], m: usize, k: usize, n: usize) -> Result<(), ()> {
+    PLANS.with(|plans| {
+        let mut plans = plans.borrow_mut();
+        let count = plans.len();
+        let (plan, workspace) = match plans.entry((m, k, n)) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                if count >= 64 {
+                    return Err(());
+                }
+                let plan = GemmPlanF32::prepare(m, k, n).map_err(|_| ())?;
+                let workspace = plan.create_workspace();
+                entry.insert((plan, workspace))
+            }
+        };
+        plan.execute(1.0, a, b, 0.0, c, workspace).map_err(|_| ())
+    })
+}
+
+fn persistent(
+    a: &[f32],
+    b: &[f32],
+    c: &mut [f32],
+    m: usize,
+    k: usize,
+    n: usize,
+    threads: usize,
+) -> Result<(), ()> {
+    POOLS.with(|pools| {
+        let mut pools = pools.borrow_mut();
+        let pool = match pools.entry(threads) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => entry.insert(
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .map_err(|_| ())?,
+            ),
+        };
+        let rows = m.div_ceil(threads);
+        pool.install(|| {
+            c.par_chunks_mut(rows * n)
+                .zip(a.par_chunks(rows * k))
+                .try_for_each(|(out, input)| prepared(input, b, out, input.len() / k, k, n))
+        })
+    })
+}
 
 /// Return one only when the AVX-512 path used by this experiment is executable.
 #[no_mangle]
@@ -39,7 +91,7 @@ pub unsafe extern "C" fn laya_probe_gemm(
     mode: u32,
     threads: usize,
 ) -> i32 {
-    if a.is_null() || b.is_null() || c.is_null() || mode > 1 || !(1..=8).contains(&threads) {
+    if a.is_null() || b.is_null() || c.is_null() || mode > 2 || !(1..=8).contains(&threads) {
         return 1;
     }
     let extents = [m.checked_mul(k), k.checked_mul(n), m.checked_mul(n)];
@@ -58,23 +110,10 @@ pub unsafe extern "C" fn laya_probe_gemm(
         if mode == 1 {
             sgemm_parallel(1.0, a, m, k, b, n, 0.0, c, threads);
             Ok(())
+        } else if mode == 2 {
+            persistent(a, b, c, m, k, n, threads)
         } else {
-            PLANS.with(|plans| {
-                let mut plans = plans.borrow_mut();
-                let count = plans.len();
-                let (plan, workspace) = match plans.entry((m, k, n)) {
-                    std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        if count >= 64 {
-                            return Err(());
-                        }
-                        let plan = GemmPlanF32::prepare(m, k, n).map_err(|_| ())?;
-                        let workspace = plan.create_workspace();
-                        entry.insert((plan, workspace))
-                    }
-                };
-                plan.execute(1.0, a, b, 0.0, c, workspace).map_err(|_| ())
-            })
+            prepared(a, b, c, m, k, n)
         }
     }));
     match result {
@@ -93,7 +132,7 @@ mod tests {
         let (m, k, n) = (17, 23, 19);
         let a: Vec<f32> = (0..m * k).map(|i| (i % 29) as f32 * 0.025 - 0.3).collect();
         let b: Vec<f32> = (0..k * n).map(|i| (i % 31) as f32 * 0.02 - 0.25).collect();
-        for mode in [0, 1] {
+        for mode in [0, 1, 2] {
             for _ in 0..2 {
                 // Repeated execution also covers cached workspace reuse.
                 let mut c = vec![123.0_f32; m * n];
@@ -122,7 +161,7 @@ mod tests {
         for (m, k, n, mode, threads) in [
             (usize::MAX, 2, 1, 0, 1),
             (0, 1, 1, 0, 1),
-            (1, 1, 1, 2, 1),
+            (1, 1, 1, 3, 1),
             (1, 1, 1, 0, 9),
         ] {
             // SAFETY: invalid parameters are rejected before any buffer is read.

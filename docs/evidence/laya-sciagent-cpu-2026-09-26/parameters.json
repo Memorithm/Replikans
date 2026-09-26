@@ -1,0 +1,21 @@
+{
+  "model_dir": "/tmp/laya-weights",
+  "manifest": "/tmp/laya-evidence/prepared-manifest.json",
+  "manifest_sha256": "9f96562e9ef90533ac95310b243689cc430176ff6b9e14fbd7f62484fcd877b4",
+  "cargo": "/root/.cargo/bin/cargo",
+  "source_hashes": {
+    "experiments/laya_cpu_scirust/Cargo.toml": "c6069bc1b9f6ecedf04a441c9c5bf9de885a3dc9bc0b85670ba2fd79fda1a0c4",
+    "experiments/laya_cpu_scirust/Cargo.lock": "fc907f8928122768eceac47f406abfb71aed94a511a4cff5f4da81fa127b42c0",
+    "experiments/laya_cpu_scirust/src/lib.rs": "f5fc4e9fc79eb49832864e5c516c5ec972d81e18492ae304cc99f714d7432a88",
+    "experiments/laya_cpu_scirust/probe.py": "8d5de6ba6dad655459d7111898c71de148707792d058b750604b3c2c18c3445f",
+    "experiments/laya_cpu_scirust/optimize.py": "50d2eca4295da8070f61680b23313cf334d2de1cca5121fe585fadc80ce7f0b9",
+    "scripts/trading_laya_shadow.py": "3595ac99d1ad9aeec865955313ef118b8c3a12706c60db86f5b1d2d1389b82e9",
+    "scripts/benchmark_laya_shadow.py": "5b58ef5b465d96e5e8f076dd1ab1822e14e694ce80dd3fba847914bf73f391f6",
+    "scripts/fixtures/laya-shadow-synthetic.jsonl": "55899ea6189611a49b60710587eed4dafab23de7c727aaf432027486f651e659"
+  },
+  "sciagent_revision": "8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e",
+  "sciagent_binary_sha256": "00dff5eee1299945240efdf4b0b3a0715a6560d9b3922e7c624c3e3cdf259113",
+  "build_attested": false,
+  "generator": "bounded_explicit_two_candidate_adapter_no_LLM",
+  "financial_dispatches": 0
+}

@@ -1,0 +1,7 @@
+{
+  "sciagent_exit_code": 2,
+  "decision": "budget-exhausted",
+  "failure_count": 0,
+  "report_sha256": "0d563e827983d4825584c8e966f94be40cc367b6e7aad0268bac03b1ae1f3293",
+  "runtime_promotion_performed": false
+}

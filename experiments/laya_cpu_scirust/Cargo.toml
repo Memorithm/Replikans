@@ -12,3 +12,4 @@ crate-type = ["cdylib"]
 [dependencies]
 scirust-simd = { git = "https://github.com/Memorithm/scirust.git", rev = "8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e" }
 
+rayon = "1.11"

@@ -7,6 +7,10 @@ numerical parity on three packets. **The tested SciRust GEMM paths do not improv
 end-to-end latency on this host.** This result does not reject other SciRust CPU
 optimizations, quantization or a future native model implementation.
 
+The subsequent [SciAgent campaign](LAYA_SCIAGENT_CPU.md) tests persistent workers,
+workspaces and output reuse through the complete optimization protocol. Both
+candidates pass numerical checks but miss the frozen PyTorch performance gate.
+
 ## Extended measurements
 
 The best pilot configuration in each family was run for 300 measured predictions,

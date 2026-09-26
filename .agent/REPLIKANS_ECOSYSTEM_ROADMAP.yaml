@@ -469,3 +469,31 @@ decision_model_specialization_2026_09_26:
     model_tokenizer_and_training_primitives: Memorithm/scirust
     financial_dataset_evaluator_and_policy: Memorithm/Replikans
     remote_control_plane: Memorithm/RemoteOps
+
+cogno_primary_decision_model_2026_09_26:
+  status: user_selected_training_and_qualification_pending
+  supersedes: SciAgent_as_primary_financial_decision_model_in_prior_specialization_plan
+  primary_model: Memorithm/COGNO-1
+  rationale:
+    - current_V4_exposes_classification_preference_contradiction_and_retrieval_without_autoregressive_dialogue
+    - scores_are_non_authoritative_and_financial_execution_stays_in_Replikans_Rust_policy
+  source_model_card: https://github.com/Memorithm/COGNO-1/blob/main/docs/MODEL_CARD.md
+  source_model_card_blob: 703cea1945c34714fe1d591008f443dc2489c51a
+  initial_scope:
+    - financial_event_classification
+    - ranking_of_prevalidated_action_candidates
+    - contradiction_and_insufficient_evidence_detection
+  training_direction:
+    - labelled_financial_decisions_and_candidate_preferences
+    - preserve_temporal_splits_source_provenance_and_rights_review
+    - no_Rust_code_generation_objective_for_COGNO_V4
+    - retain_SciAgent_corpus_admission_work_as_separate_reusable_infrastructure
+  next:
+    - inspect_COGNO_joint_training_and_Meta_review_contracts
+    - construct_disjoint_financial_supervision_for_supported_heads
+    - measure_unseen_quality_abstention_latency_and_memory
+    - paper_integration_only_after_qualification
+  limitations:
+    - no_financial_checkpoint_trained_or_installed
+    - no_profitability_or_latency_advantage_demonstrated
+    - no_funded_execution_authorized_by_model_selection

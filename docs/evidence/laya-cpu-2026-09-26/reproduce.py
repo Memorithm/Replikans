@@ -13,12 +13,49 @@ import sys
 import urllib.request
 
 
+def sha256_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def fingerprint(value):
+    payload = json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def verify_pinned_sources(evidence, repo):
+    retained = json.loads((evidence / 'summary.json').read_text())
+    headers = [run['header'] for run in retained['runs']]
+    expected_runner = {header['runner_sha256'] for header in headers}
+    expected_adapter = {header['adapter_sha256'] for header in headers}
+    expected_dataset = {header['dataset_sha256'] for header in headers}
+    if any(len(values) != 1 for values in
+           (expected_runner, expected_adapter, expected_dataset)):
+        raise ValueError('retained runs disagree on benchmark source identities')
+    dataset = [json.loads(line) for line in
+               (repo / 'scripts/fixtures/laya-shadow-synthetic.jsonl').read_text().splitlines()
+               if line.strip()]
+    observed = {
+        'runner': sha256_file(repo / 'scripts/benchmark_laya_shadow.py'),
+        'adapter': sha256_file(repo / 'scripts/trading_laya_shadow.py'),
+        'dataset': fingerprint(dataset),
+    }
+    expected = {
+        'runner': next(iter(expected_runner)),
+        'adapter': next(iter(expected_adapter)),
+        'dataset': next(iter(expected_dataset)),
+    }
+    for name in expected:
+        if observed[name] != expected[name]:
+            raise ValueError(f'pinned {name} identity mismatch')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work-dir', type=Path, required=True)
     args = parser.parse_args()
     evidence = Path(__file__).resolve().parent
     repo = evidence.parents[2]
+    verify_pinned_sources(evidence, repo)
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=False)
     weights = work / 'weights'

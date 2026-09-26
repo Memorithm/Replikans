@@ -1,0 +1,115 @@
+{
+  "provenance": {
+    "kind": "provenance",
+    "synthetic": true,
+    "financial_dispatches": 0,
+    "source_sha256": {
+      "experiments/decision_models/compare.py": "52bfdc3482a85668fe3acd0b3cc1d5d4bd270a24f2d2c9fda59ebb33fab6c004",
+      "experiments/decision_models/cases.jsonl": "1d4d2077153033785f3c48329abb6f9ece664074d75e910393e7907f1ac3051c",
+      "experiments/decision_models/Cargo.toml": "85040f6fc949bf4605dffb6a4a77546686c9c3c9d9abc15b7cafc09a801a3647",
+      "experiments/decision_models/Cargo.lock": "427efec6304925dc7d5b2731b3fbf031f055b75276e85499693e98a3fd14d5cf",
+      "experiments/decision_models/src/main.rs": "b96f6307a8d7922a79780c59e8018dc3bf8026a1460bbe5abda762d646ce1b67",
+      "scripts/trading_laya_shadow.py": "3595ac99d1ad9aeec865955313ef118b8c3a12706c60db86f5b1d2d1389b82e9"
+    },
+    "binary_sha256": "178d5b071c77d41bb95aca8f45ccd87141929ed1bc900bd0d62dee1a541f6867",
+    "checkpoint_sha256": {
+      "meta.json": "7b9362294adec8d8d3d0c27c0f38868b1e4a9eb9032e1e9daaea60fdea4285eb",
+      "model.safetensors": "bc9b44efccfc41b99a0ef1ffaf2aed0cb78cbf8d730f5d1348e559ad3e0855c9"
+    },
+    "laya": {
+      "provider": "laya",
+      "code_revision": "4066d5d5fbf08b66c6757ddeedbd797bd7655bc0",
+      "artifact_manifest_sha256": "699502992af2266f9684cb4e2f4e8b5ada7da687429dd59e9ba39e74e9a08698",
+      "device": "cpu",
+      "fast": false,
+      "dtype": "torch.float32",
+      "torch": "2.14.0+cpu",
+      "device_name": "x86_64",
+      "cuda": null,
+      "torch_threads": 8,
+      "torch_interop_threads": 1,
+      "transformers": "5.17.0"
+    },
+    "laya_load_ms": 7251.692969,
+    "instruction": "Choose A for a confirmed market event, B for unrelated text, C for unverified or conflicting information.",
+    "repeats": 3,
+    "warmups_per_backend": 1,
+    "host": "x86_64",
+    "latency_scope": "resident request; SciAgent includes IPC; no load time; not a speed qualification"
+  },
+  "sciagent_runtime": {
+    "kind": "ready",
+    "load_ms": 92.29168899999999,
+    "max_new_tokens": 8,
+    "max_seq_len": 256,
+    "seed": 42
+  },
+  "results": [
+    {
+      "kind": "summary",
+      "backend": "rules",
+      "observations": 36,
+      "unique_cases": 12,
+      "correct": 36,
+      "invalid": 0,
+      "explicit_abstentions": 12,
+      "missed_review_as_unrelated": 0,
+      "confusion": {
+        "A->A": 12,
+        "B->B": 12,
+        "C->C": 12
+      },
+      "median_request_ms": 0.002237
+    },
+    {
+      "kind": "summary",
+      "backend": "laya",
+      "observations": 36,
+      "unique_cases": 12,
+      "correct": 18,
+      "invalid": 0,
+      "explicit_abstentions": 18,
+      "missed_review_as_unrelated": 0,
+      "confusion": {
+        "A->A": 9,
+        "A->C": 3,
+        "B->A": 6,
+        "B->C": 6,
+        "C->C": 9,
+        "C->A": 3
+      },
+      "median_request_ms": 68.315681
+    },
+    {
+      "kind": "summary",
+      "backend": "sciagent",
+      "observations": 36,
+      "unique_cases": 12,
+      "correct": 0,
+      "invalid": 36,
+      "explicit_abstentions": 0,
+      "missed_review_as_unrelated": 0,
+      "confusion": {
+        "A->None": 12,
+        "B->None": 12,
+        "C->None": 12
+      },
+      "median_request_ms": 103.033495
+    }
+  ],
+  "attempts": [
+    {
+      "id": "v1",
+      "status": "failed_adapter_field_KeyError_candidate",
+      "latency_usable": false,
+      "note": "Clippy ran concurrently; not a timing experiment."
+    },
+    {
+      "id": "v2",
+      "status": "completed",
+      "measured": 108,
+      "unique_cases": 12
+    }
+  ],
+  "prediction_repeatability": "same choices across three repetitions"
+}

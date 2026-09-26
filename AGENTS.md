@@ -34,6 +34,13 @@ runtime, never in model-only instructions. Preserve pinned SciRust exact contrac
 Paper fixtures and scripted-model acceptance must not be reported as real revenue,
 real-model qualification or live exchange readiness.
 
+For model selection or financial/Rust specialization, read
+`docs/DECISION_MODEL_SPECIALIZATION.md`. Laya is an optional comparator, not a
+required dependency. Keep malformed model output distinct from an intentional
+abstention. Synthetic diagnostic cases must not become a claimed held-out
+financial benchmark or training corpus. Compare finance-only and mixed
+finance/Rust training before claiming that mixing improves either capability.
+
 Reread the roadmap at every session start, before wallet/signing/execution/replication changes, before ecosystem integrations, and before relevant PR/merge decisions.
 
 Do not merge the roadmap itself into `main` unless the user explicitly requests it.

@@ -17,11 +17,6 @@ def sha256_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def fingerprint(value):
-    payload = json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
 def verify_pinned_sources(evidence, repo):
     retained = json.loads((evidence / 'summary.json').read_text())
     headers = [run['header'] for run in retained['runs']]
@@ -31,9 +26,16 @@ def verify_pinned_sources(evidence, repo):
     if any(len(values) != 1 for values in
            (expected_runner, expected_adapter, expected_dataset)):
         raise ValueError('retained runs disagree on benchmark source identities')
-    dataset = [json.loads(line) for line in
-               (repo / 'scripts/fixtures/laya-shadow-synthetic.jsonl').read_text().splitlines()
-               if line.strip()]
+    scripts = repo / 'scripts'
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    # Use the exact reviewed parser and canonical fingerprint that the benchmark
+    # uses. This keeps duplicate-key, size, ordering, packet, and label checks on
+    # the pre-download path instead of reimplementing weaker JSON semantics here.
+    from benchmark_laya_shadow import load_cases
+    from trading_laya_shadow import fingerprint
+
+    dataset = load_cases(scripts / 'fixtures/laya-shadow-synthetic.jsonl')
     observed = {
         'runner': sha256_file(repo / 'scripts/benchmark_laya_shadow.py'),
         'adapter': sha256_file(repo / 'scripts/trading_laya_shadow.py'),

@@ -1,6 +1,7 @@
 # Laya shadow selector and evaluation runner
 
-Status: prototype, 2026-09-26. The adapter is executable; real Laya inference and
+Status: prototype, 2026-09-26. [Actual CPU inference](LAYA_CPU_QUALIFICATION.md)
+works, but the measured configuration fails the 100 ms gate. GPU acceleration and
 trading usefulness are **not yet qualified**. It never imports the trading MCP,
 loads account configuration, constructs an order or calls a venue. Every result
 is marked `mode=shadow` and `execution_authorized=false`. Rust authorization and

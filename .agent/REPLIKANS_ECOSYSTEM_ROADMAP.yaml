@@ -497,3 +497,16 @@ cogno_primary_decision_model_2026_09_26:
     - no_financial_checkpoint_trained_or_installed
     - no_profitability_or_latency_advantage_demonstrated
     - no_funded_execution_authorized_by_model_selection
+
+laya_trading_scope_exit_2026_09_26:
+  status: explicitly_removed_from_trading_program_by_user
+  primary_financial_model: Memorithm/COGNO-1
+  scope:
+    - stop_Laya_integration_optimization_and_new_comparison_campaigns_for_trading
+    - preserve_existing_Laya_evidence_and_experimental_code_as_historical_records
+    - no_deletion_of_completed_research_requested
+    - Laya_remains_available_for_other_tasks_in_other_projects
+  supersedes:
+    - earlier_Laya_trading_integration_and_optimization_next_steps
+    - earlier_plans_to_keep_Laya_as_an_active_trading_comparator
+  current_next: prepare_and_qualify_COGNO_financial_specialization

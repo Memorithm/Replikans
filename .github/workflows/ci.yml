@@ -43,6 +43,12 @@ jobs:
           cargo clippy --manifest-path experiments/laya_cpu_scirust/Cargo.toml --locked --all-targets -- -D warnings
           cargo test --manifest-path experiments/laya_cpu_scirust/Cargo.toml --locked
 
+      - name: Decision model diagnostic contracts
+        run: |
+          cargo fmt --manifest-path experiments/decision_models/Cargo.toml -- --check
+          cargo clippy --manifest-path experiments/decision_models/Cargo.toml --locked -- -D warnings
+          python3 -m unittest discover -s experiments/decision_models -p 'test_compare.py' -v
+
       - name: Trading paper agent acceptance
         run: |
           cargo build -p replikan-trading --bin replikan-trading

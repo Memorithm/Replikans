@@ -306,7 +306,7 @@ trading_position_protection_2026_09_25:
     - typed_recovery_outcomes_and_RemoteOps_worker_lifecycle
 
 laya_shadow_prototype_2026_09_26:
-  status: merged_review_invalidated_corrective_pending
+  status: merged_review_corrected_exact_head_ci_green
   pull_request: https://github.com/Memorithm/Replikans/pull/45
   candidate_revision: daf4fd85bb494fb9bcaf44412bcef97a3c0f5cc2
   merge_revision: 55369157c134905d323a82d1b19a4117e0ba5e75
@@ -316,7 +316,9 @@ laya_shadow_prototype_2026_09_26:
     consequence: merged_change_not_counted_as_qualified_until_corrective_PR_merges
     corrective_pr: https://github.com/Memorithm/Replikans/pull/46
     corrective_head: 716ad1dea191f5f8966f0adae12e46711dca6f68
-    corrective_ci_status: pending_exact_head
+    corrective_ci_status: exact_head_green
+    corrective_ci_run: https://github.com/Memorithm/Replikans/actions/runs/36226907668
+    corrective_merge: 46ce028ae2405994b6c4ede22b4e69e53857a550
   bootstrap: docs/LAYA_SHADOW.md
   upstream_code_revision: 4066d5d5fbf08b66c6757ddeedbd797bd7655bc0
   implemented_scope:

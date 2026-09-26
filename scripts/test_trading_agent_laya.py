@@ -84,6 +84,19 @@ class ShadowTests(unittest.TestCase):
         self.assertEqual(result['reason'], 'model_error')
         self.assertEqual(result['candidate_id'], shadow.ABSTAIN)
 
+    def test_late_model_failure_preserves_error_classification(self):
+        times = iter((0, 101_000_000))
+        result = shadow.select(
+            packet(),
+            Predictor(error=RuntimeError('slow GPU failure')),
+            max_latency_ms=100,
+            clock=lambda: next(times),
+        )
+        self.assertEqual(result['reason'], 'model_error')
+        self.assertEqual(result['error_type'], 'RuntimeError')
+        self.assertTrue(result['deadline_exceeded'])
+        self.assertEqual(result['candidate_id'], shadow.ABSTAIN)
+
     def test_dataset_labels_never_reach_model_and_invalid_answers_are_not_correct(self):
         cases = load_cases(FIXTURE); model = Predictor(error=RuntimeError('offline'))
         rows = []
@@ -173,6 +186,7 @@ class ShadowTests(unittest.TestCase):
         self.assertEqual(summary['coverage'], 0)
         self.assertIsNone(summary['selected_accuracy'])
         self.assertTrue(summary['p99_sample_warning'])
+        self.assertEqual(summary['deadline_exceeded_trials'], 0)
 
 
 if __name__ == '__main__':

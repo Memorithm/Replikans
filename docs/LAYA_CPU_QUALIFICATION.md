@@ -5,6 +5,9 @@ CPU. **The measured configuration fails the 100 ms latency budget.** This is
 functional and timing evidence, not a trading strategy qualification. No financial
 action was sent. CUDA/TileLang acceleration has not been measured here.
 
+Follow-up: [actual SciRust kernel and thread comparison](LAYA_SCIRUST_CPU.md).
+The two configurations below are initial baselines, not an exhaustive CPU verdict.
+
 ## Measured result
 
 Each main run uses the same three synthetic packets, repeated 100 times, after

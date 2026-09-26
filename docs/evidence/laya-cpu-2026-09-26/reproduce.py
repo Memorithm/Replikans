@@ -27,6 +27,19 @@ def verify_pinned_sources(evidence, repo):
            (expected_runner, expected_adapter, expected_dataset)):
         raise ValueError('retained runs disagree on benchmark source identities')
     scripts = repo / 'scripts'
+    expected = {
+        'runner': next(iter(expected_runner)),
+        'adapter': next(iter(expected_adapter)),
+        'dataset': next(iter(expected_dataset)),
+    }
+    # Hash and reject modified executable sources before importing either one.
+    observed_sources = {
+        'runner': sha256_file(scripts / 'benchmark_laya_shadow.py'),
+        'adapter': sha256_file(scripts / 'trading_laya_shadow.py'),
+    }
+    for name, observed in observed_sources.items():
+        if observed != expected[name]:
+            raise ValueError(f'pinned {name} identity mismatch')
     if str(scripts) not in sys.path:
         sys.path.insert(0, str(scripts))
     # Use the exact reviewed parser and canonical fingerprint that the benchmark
@@ -36,19 +49,8 @@ def verify_pinned_sources(evidence, repo):
     from trading_laya_shadow import fingerprint
 
     dataset = load_cases(scripts / 'fixtures/laya-shadow-synthetic.jsonl')
-    observed = {
-        'runner': sha256_file(repo / 'scripts/benchmark_laya_shadow.py'),
-        'adapter': sha256_file(repo / 'scripts/trading_laya_shadow.py'),
-        'dataset': fingerprint(dataset),
-    }
-    expected = {
-        'runner': next(iter(expected_runner)),
-        'adapter': next(iter(expected_adapter)),
-        'dataset': next(iter(expected_dataset)),
-    }
-    for name in expected:
-        if observed[name] != expected[name]:
-            raise ValueError(f'pinned {name} identity mismatch')
+    if fingerprint(dataset) != expected['dataset']:
+        raise ValueError('pinned dataset identity mismatch')
 
 
 def main():

@@ -137,6 +137,7 @@ def select(packet, model, min_probability=0.8, min_margin=0.05, max_latency_ms=1
               'packet_sha256': fingerprint(packet), 'candidate_set_sha256': fingerprint(packet['candidates']),
               'model': model.identity, 'candidate_id': ABSTAIN, 'reason': 'model_error',
               'probabilities': None, 'answer_confidence': None,
+              'deadline_exceeded': False,
               'gates': {'min_probability': min_probability, 'min_margin': min_margin, 'max_latency_ms': max_latency_ms}}
     try:
         response = model.predict(model_state(packet), questions(packet))
@@ -166,7 +167,10 @@ def select(packet, model, min_probability=0.8, min_margin=0.05, max_latency_ms=1
     # Historical replay TTL is a latency budget, not current wall-clock freshness.
     budget = min(max_latency_ms, packet['snapshot']['valid_until_ms']-packet['decision_at_ms'])
     if elapsed >= budget:
-        result.update(candidate_id=ABSTAIN, reason='late')
+        result['deadline_exceeded'] = True
+        result['candidate_id'] = ABSTAIN
+        if result['reason'] != 'model_error':
+            result['reason'] = 'late'
     return result
 
 

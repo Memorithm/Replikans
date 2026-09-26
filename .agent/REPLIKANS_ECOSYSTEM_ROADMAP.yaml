@@ -434,3 +434,38 @@ laya_sciagent_cpu_campaign_2026_09_26:
     - evaluate_persistent_packed_weights_with_architecture_preserving_oracles
     - qualify_graph_fusion_or_calibrated_quantization_against_actual_model_outputs
     - collect_representative_chronological_labels_before_strategy_promotion
+
+decision_model_specialization_2026_09_26:
+  status: initial_synthetic_diagnostic_complete_training_pending
+  bootstrap: docs/DECISION_MODEL_SPECIALIZATION.md
+  pull_request: https://github.com/Memorithm/Replikans/pull/52
+  merge_revision: 55933d377c5671430d1bf8043450feb5e9fcc5fe
+  candidate_revision: c424a2d10cb760ce600188ad0b7b6dfbf5942434
+  ci_run: https://github.com/Memorithm/Replikans/actions/runs/36232663924
+  scirust_revision: 8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e
+  actual_models: [laya_multilingual, sciagent_small_20M_final]
+  completed_measurements: 108
+  unique_synthetic_cases: 12
+  results_per_twelve_cases:
+    co_designed_keyword_rules: {correct: 12, invalid: 0}
+    laya_raw_choice: {correct: 6, invalid: 0}
+    sciagent_greedy_eight_token_continuation: {correct: 0, invalid: 12}
+  evidence: docs/evidence/decision-models-2026-09-26
+  constraints:
+    - invalid_output_never_credited_as_intentional_abstention
+    - failed_initial_adapter_attempt_retained
+    - co_designed_synthetic_rules_and_cases_not_held_out_accuracy
+    - no_speed_quality_profitability_or_backend_promotion
+    - no_training_or_financial_dataset_download_performed
+    - financial_authorization_remains_deterministic_Rust
+  next:
+    - source_license_revision_and_availability_timestamp_inventory_for_financial_and_Rust_corpora
+    - chronological_finance_splits_with_overlapping_label_horizon_exclusion
+    - Rust_project_origin_and_content_deduplication_before_splitting
+    - unchanged_finance_only_Rust_only_and_mixed_training_ablations_with_documented_budgets
+    - measure_forgetting_typed_output_semantics_calibration_and_Rust_compile_test_success
+    - causal_paper_strategy_qualification_only_after_model_acceptance
+  reuse:
+    model_tokenizer_and_training_primitives: Memorithm/scirust
+    financial_dataset_evaluator_and_policy: Memorithm/Replikans
+    remote_control_plane: Memorithm/RemoteOps

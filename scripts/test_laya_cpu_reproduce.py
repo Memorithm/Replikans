@@ -46,6 +46,30 @@ class LayaCpuReproducerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "pinned dataset identity mismatch"):
                 MODULE.verify_pinned_sources(evidence, repo)
 
+    def test_modified_runner_is_rejected_before_import(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            scripts = repo / "scripts"
+            fixtures = scripts / "fixtures"
+            evidence = repo / "docs/evidence/laya-cpu-2026-09-26"
+            fixtures.mkdir(parents=True)
+            evidence.mkdir(parents=True)
+            (scripts / "benchmark_laya_shadow.py").write_text(
+                "raise RuntimeError('must not execute')\n", encoding="utf-8"
+            )
+            (scripts / "trading_laya_shadow.py").write_bytes(
+                (ROOT / "scripts/trading_laya_shadow.py").read_bytes()
+            )
+            (fixtures / "laya-shadow-synthetic.jsonl").write_bytes(
+                (ROOT / "scripts/fixtures/laya-shadow-synthetic.jsonl").read_bytes()
+            )
+            (evidence / "summary.json").write_text(
+                (REPRODUCER.parent / "summary.json").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "pinned runner identity mismatch"):
+                MODULE.verify_pinned_sources(evidence, repo)
+
     def test_duplicate_dataset_key_is_rejected_before_inference(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)

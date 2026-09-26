@@ -344,3 +344,52 @@ laya_shadow_prototype_2026_09_26:
     - run_CPU_and_target_GPU_inference_acceptance_then_representative_chronological_evaluation
     - compare_rules_and_agent_baselines_before_any_paper_strategy_promotion
     - qualify_process_supervision_and_persistent_execution_path_separately
+
+
+laya_actual_cpu_qualification_2026_09_26:
+  status: merged_exact_head_ci_green
+  initial_cpu:
+    pull_request: https://github.com/Memorithm/Replikans/pull/47
+    candidate_revision: 5fe4e4be6b3014babcf0ea3894b78cc613775e0b
+    merge_revision: daee9c7db7315a36111c5b11b49fe996dc5882e5
+    ci_run: https://github.com/Memorithm/Replikans/actions/runs/36228471047
+    measured_observations: 603
+    checkpoint: convaiinnovations/laya-multilingual
+    checkpoint_revision: e4e9ddf21a7b1903b7acffd8814ad4307bf63a67
+    verified_weights_sha256: 9d628fd971b700382ac6f65920a86f149777b2e748e0c955fb3b19695aa8f204
+    report: docs/LAYA_CPU_QUALIFICATION.md
+  scirust_followup:
+    pull_request: https://github.com/Memorithm/Replikans/pull/48
+    candidate_revision: b0eca519f41ea344ea5e9efb32cd24c2d009c7e0
+    merge_revision: 71a1183501cda3c3a4ec51783265f5d1a4cae4d5
+    ci_run: https://github.com/Memorithm/Replikans/actions/runs/36229323626
+    source_scirust_revision: 8479ab7a7ed20db2b8fae8a779a31c4c94f4bb0e
+    report: docs/LAYA_SCIRUST_CPU.md
+    benchmark: experiments/laya_cpu_scirust
+    measured_observations: 843
+    scope:
+      - actual_88_mmBERT_encoder_projections_use_pinned_scirust_simd_GEMM
+      - prepared_AVX512_workspace_and_parallel_2_4_8_threads_compared
+      - Torch_intraop_1_2_4_8_threads_and_fixed_interop_1_compared
+      - 264_projection_oracles_and_final_logits_answer_parity_per_SciRust_run
+      - independent_f64_bridge_oracle_boundary_checks_and_exact_head_CI_pass
+      - no_production_dependency_financial_policy_or_shared_SciRust_API_change
+    extended_300_call_results:
+      torch_8_threads: {p50_ms: 92.53595, p95_ms: 108.039736, p99_ms: 115.027037, late: 54}
+      scirust_parallel_4_threads: {p50_ms: 283.008442, p95_ms: 308.488026, p99_ms: 323.980023, late: 300}
+    interpretation:
+      - actual_CPU_inference_and_experimental_hybrid_numerical_parity_demonstrated
+      - tested_SciRust_GEMMs_do_not_improve_this_host_end_to_end_latency
+      - neither_extended_configuration_consistently_meets_100ms
+      - initial_two_PyTorch_configurations_do_not_exhaust_CPU_options
+  limitations:
+    - three_unique_synthetic_packets_no_representative_quality_or_profitability_evidence
+    - no_CUDA_TileLang_or_funded_execution_qualification
+    - no_full_native_SciRust_ModernBERT_or_quantized_Laya_adapter
+    - virtualized_host_fixed_order_repeated_samples_not_production_SLO
+    - no_ML_maturity_or_production_backend_promotion
+  next:
+    - investigate_persistent_packed_weights_and_workers_with_actual_model_oracles
+    - qualify_architecture_preserving_graph_fusion_and_quantized_CPU_candidates
+    - build_representative_chronological_labels_and_compare_rules_agent_baselines
+    - independently_qualify_supervision_and_persistent_financial_execution_path

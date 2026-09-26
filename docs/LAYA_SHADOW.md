@@ -31,7 +31,9 @@ financial probabilities or approved trading thresholds.
 Results retain packet/candidate hashes, request/snapshot IDs, model identity,
 gates, elapsed time and an explicit outcome reason. Malformed responses and
 inference errors produce an abstention; they never become successful predictions
-in the evaluation statistics. Labels and baseline decisions stay outside model
+in the evaluation statistics. If an inference error also exceeds its deadline,
+the error remains the primary outcome while `deadline_exceeded=true` records the
+independent timing failure. Labels and baseline decisions stay outside model
 input. Provenance hashes detect accidental drift, not a malicious rewrite of all
 evidence by a privileged host.
 

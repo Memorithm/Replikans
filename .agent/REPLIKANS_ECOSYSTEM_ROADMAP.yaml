@@ -510,3 +510,23 @@ laya_trading_scope_exit_2026_09_26:
     - earlier_Laya_trading_integration_and_optimization_next_steps
     - earlier_plans_to_keep_Laya_as_an_active_trading_comparator
   current_next: prepare_and_qualify_COGNO_financial_specialization
+
+
+ax_autonomous_action_task_program:
+  source_review_date: "2026-09-27"
+  external_reference: google_ax_architecture_only
+  role: task_scoped_autonomous_action_consumer
+  objective: >-
+    Bind autonomous planning and effectful execution to explicit task
+    identities, least-privilege capabilities, bounded resources and retained
+    action provenance while keeping credentials outside manifests.
+  phases:
+    - AXREP1_define_read_analyse_simulate_and_effect_capability_separation
+    - AXREP2_bind_each_effectful_attempt_to_task_identity_and_policy
+    - AXREP3_prevent_credential_material_from_entering_task_workspace_or_provenance
+    - AXREP4_reconcile_ambiguous_effects_before_retry
+    - AXREP5_support_child_tasks_for_analysis_without_inheriting_effect_authority
+  invariants:
+    - no_hardcoded_or_committed_credentials
+    - analytical_tasks_do_not_inherit_effect_permissions
+    - retries_do_not_duplicate_ambiguous_external_effects
